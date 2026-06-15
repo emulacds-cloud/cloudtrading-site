@@ -417,6 +417,22 @@ svg.mchart{width:100%;height:100%}
 
   <div class="main">
 
+    <!-- RESULTADO DO DIA (atualizado pelo servidor a cada hora via /api/hoje) -->
+    <div id="hoje-section" style="display:none;margin-bottom:24px">
+      <div class="sec-label">
+        Resultado do Dia · Tempo Real
+        <span id="hoje-badge" style="margin-left:8px;font-size:10px;padding:2px 8px;border-radius:4px;background:rgba(22,163,74,.12);color:var(--grn);border:1px solid rgba(22,163,74,.25);font-weight:700;letter-spacing:.06em">● AO VIVO</span>
+        <span id="hoje-time" style="margin-left:8px;font-size:10px;color:var(--txt3);font-family:'JetBrains Mono',monospace"></span>
+      </div>
+      <div style="background:linear-gradient(135deg,#0c1a2e,#0f2744);border-radius:14px;padding:20px 24px;color:#fff">
+        <div id="hoje-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:14px"></div>
+        <div style="padding-top:14px;border-top:1px solid rgba(255,255,255,.1);display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:11px;opacity:.6">Total Cloud hoje</span>
+          <span id="hoje-total" style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700">—</span>
+        </div>
+      </div>
+    </div>
+
     <!-- PERFORMANCE CONSOLIDADA -->
     <div class="sec-label">Performance Consolidada</div>
     <div class="chart-card">
@@ -638,7 +654,7 @@ svg.mchart{width:100%;height:100%}
 // ═══════════════════════════════════════════════════
 // CONFIG
 // ═══════════════════════════════════════════════════
-const API = 'https://api.smarttbot.com/smarttbot-manager-api/api/v1/store/products?period=SIX_MONTHS';
+const API = '/api/produtos?period=SIX_MONTHS';
 const COLORS = ['#0284c7','#16a34a','#d97706','#7c3aed','#db2777','#0891b2','#ea580c','#4f46e5','#059669','#dc2626','#0369a1','#15803d','#6d28d9','#be185d','#0e7490','#92400e'];
 
 // Estratégias excluídas do site (não aparecem em nenhuma aba nem nos dados estatísticos)
@@ -1729,7 +1745,88 @@ async function loadData() {
   }
 }
 
+// ── RESULTADO DO DIA VIA SERVIDOR ──────────────────
+// Busca /api/hoje que roda no servidor Vercel com o token configurado
+// O visitante nunca vê o token — fica 100% no servidor
+async function loadHoje() {
+  try {
+    const res = await fetch('/api/hoje');
+    if (!res.ok) return; // token não configurado ainda — sem erro para o visitante
+
+    const data = await res.json();
+    if (!data.resultados || !data.resultados.length) return;
+
+    const section = document.getElementById('hoje-section');
+    const grid    = document.getElementById('hoje-grid');
+    const total   = document.getElementById('hoje-total');
+    const timeEl  = document.getElementById('hoje-time');
+
+    section.style.display = 'block';
+
+    // Atualizar Top5 do dia com dados reais
+    atualizarTop5Hoje(data.resultados);
+
+    // Render cards
+    grid.innerHTML = data.resultados.map(r => {
+      const pos = r.resultadoHoje > 0, neg = r.resultadoHoje < 0;
+      const cor = pos ? '#4ade80' : neg ? '#f87171' : 'rgba(255,255,255,.4)';
+      const sinal = pos ? '+' : '';
+      const nome = r.nome.length > 16 ? r.nome.substring(0, 16) + '…' : r.nome;
+      return `<div style="background:rgba(255,255,255,.07);border-radius:8px;padding:12px 14px">
+        <div style="font-size:10px;opacity:.6;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.nome}">${nome}</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;color:${cor}">${sinal}R$${Math.abs(r.resultadoHoje).toFixed(2).replace('.',',')}</div>
+        <div style="font-size:9px;opacity:.45;margin-top:2px">${r.tradesHoje > 0 ? r.tradesHoje + ' trade' + (r.tradesHoje !== 1 ? 's' : '') : 'sem trades'}</div>
+      </div>`;
+    }).join('');
+
+    // Total
+    const t = data.total;
+    total.textContent = (t >= 0 ? '+' : '') + 'R$' + Math.abs(t).toFixed(2).replace('.', ',');
+    total.style.color = t > 0 ? '#4ade80' : t < 0 ? '#f87171' : 'rgba(255,255,255,.4)';
+
+    // Timestamp
+    const dt = new Date(data.atualizadoEm);
+    timeEl.textContent = `Atualizado ${dt.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})} · ${data.ativos || 0} estratégias ativas`;
+
+  } catch (e) {
+    // Silencioso — se /api/hoje não responder, apenas não mostra a seção
+    console.log('Dados do dia não disponíveis:', e.message);
+  }
+}
+
+function atualizarTop5Hoje(resultados) {
+  const ativos = resultados.filter(r => r.tradesHoje > 0);
+  if (!ativos.length) return;
+
+  const top5 = ativos.slice(0, 5);
+  const hoje = new Date().toLocaleDateString('pt-BR', {weekday:'short', day:'numeric', month:'short'});
+
+  const badge = document.getElementById('top5-day-badge');
+  const title = document.getElementById('top5-day-title');
+  const head  = document.getElementById('top5-day-head');
+  const note  = document.getElementById('top5-day-note');
+
+  if (badge) { badge.textContent = 'HOJE · AO VIVO'; badge.style.background = 'rgba(22,163,74,.15)'; badge.style.color = 'var(--grn)'; badge.style.border = '1px solid rgba(22,163,74,.3)'; }
+  if (title) title.textContent = `🏆 Top 5 — Hoje`;
+  if (head)  head.textContent  = hoje;
+  if (note)  note.innerHTML    = `<span style="color:var(--grn)">🟢 Dados em tempo real · atualizado a cada hora pelo servidor</span>`;
+
+  document.getElementById('top5-day').innerHTML = top5.map((r, i) => {
+    const cls  = r.resultadoHoje >= 0 ? 'g' : 'r';
+    const sinal = r.resultadoHoje > 0 ? '+' : '';
+    const nome  = r.nome.length > 20 ? r.nome.substring(0,20)+'…' : r.nome;
+    return `<tr>
+      <td class="rank-num ${i < 3 ? 'rank-'+(i+1) : ''}">${i+1}</td>
+      <td class="strat-name-cell">${nome}</td>
+      <td class="ret-cell ${cls}">${sinal}R$${Math.abs(r.resultadoHoje).toFixed(2).replace('.',',')}</td>
+    </tr>`;
+  }).join('');
+}
+
 loadData();
+// Busca resultado do dia imediatamente e depois a cada hora
+loadHoje();
+setInterval(loadHoje, 60 * 60 * 1000);
 </script>
 </body>
 </html>
