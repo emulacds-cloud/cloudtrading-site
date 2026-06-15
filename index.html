@@ -1,0 +1,2138 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Cloud Trading — Dashboard</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap');
+
+/* ── TOKENS ── */
+:root {
+  --bg:      #f1f5f9;
+  --card:    #ffffff;
+  --brd:     #e2e8f0;
+  --brd2:    #cbd5e1;
+  --blue:    #0284c7;
+  --blue2:   #0ea5e9;
+  --blue-lt: #eff6ff;
+  --blue-md: #dbeafe;
+  --grn:     #16a34a;
+  --grn-lt:  #dcfce7;
+  --red:     #dc2626;
+  --red-lt:  #fee2e2;
+  --amb:     #d97706;
+  --amb-lt:  #fef3c7;
+  --txt:     #0f172a;
+  --txt2:    #475569;
+  --txt3:    #94a3b8;
+  --hero-bg: #0c1a2e;
+}
+
+/* ── RESET ── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--txt);min-height:100vh;font-size:14px}
+button{font-family:'Inter',sans-serif;cursor:pointer}
+a{text-decoration:none}
+
+/* ── LAYOUT ── */
+.app{display:flex;flex-direction:column;min-height:100vh}
+
+/* ── TOPBAR ── */
+.topbar{
+  position:sticky;top:0;z-index:100;
+  background:#fff;border-bottom:1px solid var(--brd);
+  box-shadow:0 1px 4px rgba(0,0,0,.06);
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 40px;height:60px;
+}
+.topbar-brand{display:flex;align-items:center;gap:11px}
+.topbar-icon{
+  width:36px;height:36px;border-radius:9px;
+  background:linear-gradient(135deg,#0369a1,#0ea5e9);
+  display:flex;align-items:center;justify-content:center;
+  font-size:17px;box-shadow:0 2px 8px rgba(3,105,161,.25);
+  flex-shrink:0;
+}
+.topbar-name{font-size:15px;font-weight:800;color:var(--txt);letter-spacing:-.02em}
+.topbar-sub{font-size:10px;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;margin-top:1px}
+
+/* NAV TABS */
+.nav{display:flex;gap:2px;height:100%;align-items:center}
+.nav-btn{
+  height:100%;padding:0 18px;border:none;background:transparent;
+  font-size:13px;font-weight:500;color:var(--txt2);
+  border-bottom:3px solid transparent;transition:all .15s;white-space:nowrap;
+}
+.nav-btn:hover{color:var(--blue);background:var(--blue-lt)}
+.nav-btn.active{color:var(--blue);border-bottom-color:var(--blue);font-weight:700}
+
+/* TOPBAR RIGHT */
+.topbar-right{display:flex;align-items:center;gap:14px}
+.live-chip{display:flex;align-items:center;gap:6px;padding:4px 11px;border-radius:20px;background:var(--grn-lt);border:1px solid #86efac;font-size:10px;font-weight:700;color:var(--grn);letter-spacing:.08em}
+.pulse{width:6px;height:6px;border-radius:50%;background:var(--grn);box-shadow:0 0 0 0 rgba(22,163,74,.4);animation:pulse 2s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(22,163,74,.4)}70%{box-shadow:0 0 0 6px rgba(22,163,74,0)}100%{box-shadow:0 0 0 0 rgba(22,163,74,0)}}
+#clock{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--txt3)}
+.refresh-info{font-size:11px;color:var(--txt3);display:flex;align-items:center;gap:6px}
+.refresh-info strong{color:var(--blue);font-family:'JetBrains Mono',monospace}
+.btn-refresh{background:var(--blue-lt);border:1px solid var(--blue-md);color:var(--blue);font-size:11px;font-weight:600;padding:4px 10px;border-radius:6px;transition:background .15s}
+.btn-refresh:hover{background:var(--blue-md)}
+
+/* ── PAGES ── */
+.page{display:none;flex:1}
+.page.active{display:block}
+
+/* ── HERO ── */
+.hero{
+  background:var(--hero-bg);
+  padding:44px 40px 40px;color:#fff;
+  position:relative;overflow:hidden;
+}
+.hero::after{
+  content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse at 70% 50%, rgba(14,165,233,.12) 0%, transparent 70%);
+  pointer-events:none;
+}
+.hero-top{display:flex;justify-content:space-between;align-items:flex-start;gap:40px;position:relative;z-index:1}
+.hero-left{}
+.hero-eye{font-size:10px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--blue2);margin-bottom:10px}
+.hero-title{font-size:36px;font-weight:800;letter-spacing:-.03em;line-height:1.1;margin-bottom:10px}
+.hero-title em{font-style:normal;color:var(--blue2)}
+.hero-desc{font-size:13px;color:rgba(255,255,255,.6);line-height:1.7;max-width:460px}
+.hero-pills{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}
+.hero-pill{padding:5px 12px;border-radius:20px;border:1px solid rgba(255,255,255,.15);font-size:11px;font-weight:500;color:rgba(255,255,255,.75)}
+.hero-numbers{display:flex;gap:0;flex-shrink:0}
+.hn{padding:20px 28px;border-left:1px solid rgba(255,255,255,.08);text-align:center}
+.hn:first-child{border-left:none}
+.hn-val{font-family:'JetBrains Mono',monospace;font-size:32px;font-weight:700;color:#fff;line-height:1}
+.hn-val.g{color:#4ade80}
+.hn-lbl{font-size:10px;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.08em;margin-top:5px}
+
+/* ── MAIN ── */
+.main{padding:28px 40px;max-width:1400px;margin:0 auto;width:100%}
+
+/* ── SECTION ── */
+.sec-label{font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--txt3);margin-bottom:14px;display:flex;align-items:center;gap:10px}
+.sec-label::after{content:'';flex:1;height:1px;background:var(--brd)}
+
+/* ── CARDS GRID ── */
+.risk-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:24px}
+.rcard{background:var(--card);border:1px solid var(--brd);border-radius:12px;padding:18px;box-shadow:0 1px 3px rgba(0,0,0,.04);transition:box-shadow .2s}
+.rcard:hover{box-shadow:0 4px 12px rgba(0,0,0,.07)}
+.rcard-ico{font-size:18px;margin-bottom:10px;opacity:.7}
+.rcard-lbl{font-size:10px;font-weight:600;color:var(--txt3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px}
+.rcard-val{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;line-height:1}
+.rcard-val.g{color:var(--grn)}.rcard-val.r{color:var(--red)}.rcard-val.b{color:var(--blue)}.rcard-val.k{color:var(--txt)}
+.rcard-sub{font-size:11px;color:var(--txt3);margin-top:5px}
+
+/* ── PERF CHART ── */
+.chart-card{background:var(--card);border:1px solid var(--brd);border-radius:14px;padding:22px;box-shadow:0 1px 3px rgba(0,0,0,.04);margin-bottom:24px}
+.chart-card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
+.chart-title{font-size:13px;font-weight:700;color:var(--txt2)}
+.period-tabs{display:flex;gap:4px}
+.ptab{padding:4px 12px;border-radius:6px;border:1px solid var(--brd);font-size:11px;font-weight:600;color:var(--txt3);background:#fff;transition:all .15s}
+.ptab:hover{border-color:var(--blue2);color:var(--blue)}
+.ptab.active{background:var(--blue);border-color:var(--blue);color:#fff}
+.chart-wrap{height:180px;position:relative}
+svg.perf{width:100%;height:100%}
+
+/* ── TOP 5 GRID ── */
+.top5-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:28px}
+.top5-card{background:var(--card);border:1px solid var(--brd);border-radius:14px;padding:20px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.top5-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.top5-title{font-size:13px;font-weight:700;color:var(--txt)}
+.top5-badge{font-size:9px;font-weight:700;padding:3px 8px;border-radius:5px;letter-spacing:.06em}
+.top5-badge.day{background:var(--blue-md);color:#1d4ed8}
+.top5-badge.month{background:var(--grn-lt);color:#15803d}
+.top5-table{width:100%;border-collapse:collapse}
+.top5-table th{font-size:10px;font-weight:600;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;padding:0 8px 10px;text-align:left;border-bottom:1px solid var(--brd)}
+.top5-table td{padding:10px 8px;border-bottom:1px solid #f8fafc;font-size:13px}
+.top5-table tr:last-child td{border:none}
+.top5-table tr:hover td{background:#f8fafc}
+.rank-num{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:var(--txt3);width:24px}
+.rank-1{color:#f59e0b}
+.rank-2{color:#94a3b8}
+.rank-3{color:#cd7c2e}
+.strat-name-cell{font-weight:600;color:var(--txt)}
+.ret-cell{font-family:'JetBrains Mono',monospace;font-weight:700;text-align:right}
+.ret-cell.g{color:var(--grn)}.ret-cell.r{color:var(--red)}
+
+/* ── STRATEGY LIST ── */
+.strat-toolbar{display:flex;gap:10px;margin-bottom:14px;align-items:center;flex-wrap:wrap}
+.strat-search{flex:1;min-width:200px;background:#fff;border:1px solid var(--brd);border-radius:9px;padding:8px 14px 8px 36px;font-size:13px;font-family:'Inter',sans-serif;color:var(--txt);outline:none;transition:border-color .15s}
+.strat-search:focus{border-color:var(--blue2);box-shadow:0 0 0 3px rgba(14,165,233,.1)}
+.strat-search::placeholder{color:var(--txt3)}
+.search-wrap{position:relative;flex:1}
+.search-wrap::before{content:'⌕';position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:15px;color:var(--txt3);pointer-events:none}
+.sort-select{background:#fff;border:1px solid var(--brd);border-radius:9px;padding:8px 14px;font-size:12px;font-family:'Inter',sans-serif;color:var(--txt2);outline:none;cursor:pointer}
+.strat-count{font-size:11px;color:var(--txt3);white-space:nowrap}
+
+.strat-table-wrap{background:var(--card);border:1px solid var(--brd);border-radius:14px;box-shadow:0 1px 3px rgba(0,0,0,.04);overflow:hidden;margin-bottom:28px}
+.strat-table{width:100%;border-collapse:collapse}
+.strat-table th{font-size:10px;font-weight:600;color:var(--txt3);text-transform:uppercase;letter-spacing:.1em;padding:12px 16px;text-align:left;border-bottom:1px solid var(--brd);background:#fafbfc;white-space:nowrap}
+.strat-table td{padding:13px 16px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+.strat-table tr:last-child td{border:none}
+.strat-table tbody tr{cursor:pointer;transition:background .12s}
+.strat-table tbody tr:hover{background:#f8fafc}
+.sname{font-weight:700;color:var(--txt);font-size:13px}
+.sasset{font-size:10px;color:var(--txt3);margin-top:2px}
+.mono{font-family:'JetBrains Mono',monospace}
+.pill{display:inline-block;padding:2px 8px;border-radius:5px;font-size:10px;font-weight:600}
+.pill.g{background:var(--grn-lt);color:#15803d}
+.pill.r{background:var(--red-lt);color:#b91c1c}
+.pill.b{background:var(--blue-md);color:#1d4ed8}
+.pill.a{background:var(--amb-lt);color:#92400e}
+.status-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px}
+.status-dot.on{background:var(--grn);box-shadow:0 0 5px var(--grn)}
+.status-dot.off{background:var(--txt3)}
+.chevron{color:var(--txt3);font-size:16px;transition:transform .15s}
+.strat-table tbody tr:hover .chevron{transform:translateX(3px);color:var(--blue)}
+
+/* ── MODAL (Estratégia Individual) ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:200;display:none;align-items:flex-start;justify-content:center;padding:24px;overflow-y:auto;backdrop-filter:blur(4px)}
+.modal-overlay.open{display:flex}
+.modal{background:#fff;border-radius:18px;width:100%;max-width:900px;overflow:hidden;box-shadow:0 24px 80px rgba(0,0,0,.2);margin:auto}
+.modal-header{background:var(--hero-bg);padding:28px 32px;color:#fff;display:flex;justify-content:space-between;align-items:flex-start}
+.modal-title{font-size:24px;font-weight:800;letter-spacing:-.02em;margin-bottom:4px}
+.modal-meta{font-size:12px;color:rgba(255,255,255,.55);display:flex;gap:16px;flex-wrap:wrap}
+.modal-meta span{display:flex;align-items:center;gap:4px}
+.modal-close{background:rgba(255,255,255,.1);border:none;color:#fff;width:34px;height:34px;border-radius:8px;font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .15s;flex-shrink:0}
+.modal-close:hover{background:rgba(255,255,255,.2)}
+.modal-body{padding:28px 32px}
+.modal-metrics{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:24px}
+.mm{background:var(--bg);border:1px solid var(--brd);border-radius:10px;padding:14px}
+.mm-lbl{font-size:9px;font-weight:600;color:var(--txt3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px}
+.mm-val{font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700}
+.modal-chart-wrap{height:220px;margin-bottom:8px}
+svg.mchart{width:100%;height:100%}
+.modal-period-tabs{display:flex;gap:4px;margin-bottom:18px}
+.monthly-table{width:100%;border-collapse:collapse;margin-top:18px}
+.monthly-table th{font-size:10px;font-weight:600;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;padding:8px 10px;text-align:left;border-bottom:1px solid var(--brd)}
+.monthly-table td{padding:9px 10px;border-bottom:1px solid #f1f5f9;font-size:12px}
+.monthly-table tr:last-child td{border:none}
+
+/* ── RESULTS (iframe) ── */
+.results-wrap{background:var(--card);border:1px solid var(--brd);border-radius:14px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.04);height:calc(100vh - 200px);min-height:500px}
+.results-wrap iframe{width:100%;height:100%;border:none;display:block}
+
+/* ── PORTFOLIOS ── */
+.port-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:28px}
+.port-card{
+  background:var(--card);border:1px solid var(--brd);border-radius:14px;overflow:hidden;
+  box-shadow:0 1px 3px rgba(0,0,0,.04);transition:box-shadow .2s,transform .2s;cursor:pointer;
+}
+.port-card:hover{box-shadow:0 8px 28px rgba(0,0,0,.12);transform:translateY(-2px)}
+.port-header{padding:22px 24px;color:#fff;position:relative;overflow:hidden}
+.port-header::after{content:'';position:absolute;right:-20px;top:-20px;width:100px;height:100px;border-radius:50%;background:rgba(255,255,255,.07)}
+.port-header.conservative{background:linear-gradient(135deg,#0369a1,#0284c7)}
+.port-header.moderate{background:linear-gradient(135deg,#0891b2,#06b6d4)}
+.port-header.aggressive{background:linear-gradient(135deg,#7c3aed,#8b5cf6)}
+.port-name{font-size:17px;font-weight:800;margin-bottom:4px;letter-spacing:-.01em}
+.port-sub{font-size:11px;opacity:.8;margin-bottom:12px}
+.port-header-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+.phk{background:rgba(255,255,255,.12);border-radius:6px;padding:8px 10px;text-align:center}
+.phk-val{font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700}
+.phk-lbl{font-size:9px;opacity:.75;text-transform:uppercase;letter-spacing:.07em;margin-top:2px}
+.port-body{padding:18px 22px}
+.port-strats-label{font-size:9px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px}
+.port-strats{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:14px}
+.port-strat-tag{
+  background:var(--bg);border:1px solid var(--brd);border-radius:5px;
+  padding:3px 9px;font-size:11px;font-weight:500;color:var(--txt2);
+  display:flex;align-items:center;gap:5px;
+}
+.port-strat-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.port-sparkline{margin-bottom:12px;background:var(--bg);border-radius:6px;overflow:hidden}
+.port-footer{
+  display:flex;justify-content:space-between;align-items:center;
+  padding-top:12px;border-top:1px solid var(--brd);
+}
+.port-cap{font-size:11px;color:var(--txt3)}
+.port-cap strong{color:var(--txt)}
+.port-detail-btn{
+  font-size:11px;font-weight:600;color:var(--blue);
+  background:var(--blue-lt);border:1px solid var(--blue-md);
+  padding:5px 12px;border-radius:6px;cursor:pointer;
+  transition:background .15s;border:none;
+}
+.port-detail-btn:hover{background:var(--blue-md)}
+.port-building{
+  text-align:center;padding:28px 16px;
+  font-size:12px;color:var(--txt3);
+}
+.port-building .spinner-sm{
+  width:24px;height:24px;border:2px solid var(--brd);border-top-color:var(--blue);
+  border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 10px;
+}
+
+/* ── PORTFOLIO MODAL ── */
+.port-modal-overlay{
+  position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:300;
+  display:none;align-items:flex-start;justify-content:center;
+  padding:20px;overflow-y:auto;backdrop-filter:blur(4px);
+}
+.port-modal-overlay.open{display:flex}
+.port-modal{
+  background:#fff;border-radius:18px;width:100%;max-width:960px;
+  overflow:hidden;box-shadow:0 24px 80px rgba(0,0,0,.22);margin:auto;
+}
+.port-modal-header{padding:28px 32px;color:#fff;display:flex;justify-content:space-between;align-items:flex-start}
+.port-modal-header.conservative{background:linear-gradient(135deg,#0369a1,#0284c7)}
+.port-modal-header.moderate{background:linear-gradient(135deg,#0891b2,#06b6d4)}
+.port-modal-header.aggressive{background:linear-gradient(135deg,#7c3aed,#8b5cf6)}
+.port-modal-title{font-size:24px;font-weight:800;letter-spacing:-.02em;margin-bottom:4px}
+.port-modal-sub{font-size:12px;opacity:.75}
+.port-modal-body{padding:28px 32px}
+.pm-kpi-strip{
+  display:grid;grid-template-columns:repeat(6,1fr);gap:1px;
+  background:var(--brd);border:1px solid var(--brd);border-radius:8px;
+  overflow:hidden;margin-bottom:24px;
+}
+.pm-kpi{background:#fff;padding:14px 12px;text-align:center}
+.pm-kpi-val{font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;display:block;margin-bottom:3px}
+.pm-kpi-lbl{font-size:9px;color:var(--txt3);text-transform:uppercase;letter-spacing:.09em}
+.pm-section-label{
+  font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--txt3);margin-bottom:12px;
+}
+.pm-strat-row{
+  display:flex;align-items:center;gap:12px;padding:10px 14px;
+  background:var(--bg);border-radius:8px;margin-bottom:6px;
+}
+.pm-strat-color{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+.pm-strat-name{font-weight:600;font-size:13px;flex:1}
+.pm-strat-chips{display:flex;gap:6px;flex-wrap:wrap}
+.pm-chip{
+  font-family:'JetBrains Mono',monospace;font-size:10px;
+  padding:2px 8px;border-radius:4px;font-weight:600;
+}
+.monthly-table{width:100%;border-collapse:collapse;font-family:'JetBrains Mono',monospace;font-size:11px}
+.monthly-table th{font-size:9px;font-weight:600;color:var(--txt3);text-transform:uppercase;letter-spacing:.1em;padding:8px 10px;text-align:right;border-bottom:1px solid var(--brd);white-space:nowrap}
+.monthly-table th:first-child{text-align:left}
+.monthly-table td{padding:8px 10px;text-align:right;border-bottom:1px solid #f8fafc}
+.monthly-table td:first-child{text-align:left;color:var(--txt3)}
+.monthly-table tr:last-child td{border:none}
+.monthly-table tr:hover td{background:#f8fafc}
+@media(max-width:900px){
+  .port-grid{grid-template-columns:1fr}
+  .pm-kpi-strip{grid-template-columns:repeat(3,1fr)}
+  .port-modal-body{padding:20px}
+}
+
+/* ── PARTNERS ── */
+.partner-hero{background:var(--hero-bg);padding:52px 40px;color:#fff;text-align:center;margin-bottom:28px}
+.partner-hero h2{font-size:32px;font-weight:800;letter-spacing:-.02em;margin-bottom:10px}
+.partner-hero p{font-size:14px;color:rgba(255,255,255,.6);max-width:480px;margin:0 auto 24px}
+.btn-partner{display:inline-block;background:var(--blue2);color:#fff;padding:12px 28px;border-radius:10px;font-size:13px;font-weight:700;border:none;transition:background .15s;cursor:pointer}
+.btn-partner:hover{background:#0369a1}
+.partner-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;margin-bottom:28px}
+.partner-card{background:var(--card);border:1px solid var(--brd);border-radius:12px;padding:24px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.04);transition:box-shadow .2s}
+.partner-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.08)}
+.partner-logo{font-size:32px;margin-bottom:10px}
+.partner-name{font-size:14px;font-weight:700;color:var(--txt);margin-bottom:4px}
+.partner-role{font-size:11px;color:var(--txt3)}
+
+/* ── LOADING ── */
+#loading{position:fixed;inset:0;background:#fff;z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px}
+.spinner{width:36px;height:36px;border:3px solid var(--brd);border-top-color:var(--blue);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.load-txt{font-size:13px;color:var(--txt3)}
+
+/* ── FOOTER ── */
+.footer{border-top:1px solid var(--brd);padding:14px 40px;display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--txt3);background:#fff}
+.footer a{color:var(--blue)}
+
+/* ── TOKEN BUTTON ── */
+.btn-token{
+  background:var(--amb-lt);border:1px solid var(--amb);color:var(--amb);
+  font-size:11px;font-weight:700;padding:4px 10px;border-radius:6px;
+  cursor:pointer;transition:all .15s;font-family:'Inter',sans-serif;
+}
+.btn-token:hover{background:var(--amb);color:#fff}
+.btn-token.active{background:var(--grn);border-color:var(--grn);color:#fff}
+
+/* ── TOKEN MODAL ── */
+.token-modal-overlay{
+  position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:400;
+  display:none;align-items:center;justify-content:center;
+  padding:20px;backdrop-filter:blur(4px);
+}
+.token-modal-overlay.open{display:flex}
+.token-modal{
+  background:#fff;border-radius:16px;width:100%;max-width:560px;
+  overflow:hidden;box-shadow:0 24px 80px rgba(0,0,0,.25);
+}
+.token-modal-header{
+  background:linear-gradient(135deg,#0c1a2e,#0369a1);
+  padding:24px 28px;color:#fff;
+  display:flex;justify-content:space-between;align-items:flex-start;
+}
+.token-modal-body{padding:24px 28px}
+.token-steps{display:flex;flex-direction:column;gap:10px}
+.token-step{
+  display:flex;align-items:flex-start;gap:12px;
+  font-size:12px;color:var(--txt2);line-height:1.5;
+}
+.token-step-num{
+  width:22px;height:22px;border-radius:50%;
+  background:var(--blue);color:#fff;
+  font-size:11px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  margin-top:1px;
+}
+
+/* ── LIVE DATA BADGE ── */
+.live-data-badge{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:3px 8px;border-radius:4px;
+  font-size:10px;font-weight:700;letter-spacing:.06em;
+}
+.live-data-badge.realtime{background:rgba(22,163,74,.15);color:var(--grn);border:1px solid rgba(22,163,74,.3)}
+.live-data-badge.historical{background:rgba(148,163,184,.15);color:var(--txt3);border:1px solid var(--brd)}
+
+/* ── TODAY RESULT SECTION ── */
+.today-section{
+  background:linear-gradient(135deg,#0c1a2e,#0f2744);
+  border-radius:12px;padding:20px 24px;margin-bottom:24px;
+  color:#fff;
+}
+.today-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.today-title{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;opacity:.7}
+.today-time{font-family:'JetBrains Mono',monospace;font-size:11px;opacity:.5}
+.today-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px}
+.today-item{background:rgba(255,255,255,.07);border-radius:8px;padding:12px 14px}
+.today-item-name{font-size:10px;opacity:.6;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.today-item-val{font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700}
+.today-item-trades{font-size:9px;opacity:.5;margin-top:2px}
+.today-item-val.pos{color:#4ade80}
+.today-item-val.neg{color:#f87171}
+.today-item-val.zero{color:rgba(255,255,255,.4)}
+  .topbar,.main,.hero,.partner-hero{padding-left:20px;padding-right:20px}
+  .footer{padding-left:20px;padding-right:20px}
+  .risk-grid{grid-template-columns:repeat(3,1fr)}
+  .top5-grid{grid-template-columns:1fr}
+  .port-grid{grid-template-columns:1fr}
+  .modal-metrics{grid-template-columns:repeat(3,1fr)}
+  .hero-top{flex-direction:column}
+  .hero-numbers{flex-wrap:wrap}
+}
+@media(max-width:640px){
+  .nav-btn{padding:0 10px;font-size:12px}
+  .risk-grid{grid-template-columns:1fr 1fr}
+  .hero-title{font-size:26px}
+  .modal-metrics{grid-template-columns:1fr 1fr}
+  .topbar-right .refresh-info{display:none}
+}
+</style>
+</head>
+<body>
+<div id="loading"><div class="spinner"></div><div class="load-txt" id="load-msg">Carregando dados Cloud...</div></div>
+
+<div class="app">
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="topbar-brand">
+    <div class="topbar-icon">☁️</div>
+    <div><div class="topbar-name">Cloud Trading</div><div class="topbar-sub">Estratégias Automatizadas · B3</div></div>
+  </div>
+  <nav class="nav">
+    <button class="nav-btn active" onclick="goPage('home',this)">🏠 Home</button>
+    <button class="nav-btn" onclick="goPage('strategies',this)">📋 Estratégias</button>
+    <button class="nav-btn" onclick="goPage('results',this)">📊 Resultados</button>
+    <button class="nav-btn" onclick="goPage('portfolios',this)">💼 Portfólios</button>
+    <button class="nav-btn" onclick="goPage('partners',this)">🤝 Parceiros</button>
+  </nav>
+  <div class="topbar-right">
+    <div class="refresh-info">Próx. atualização: <strong id="countdown">10:00</strong></div>
+    <button class="btn-refresh" onclick="loadData()">↻</button>
+    <div class="live-chip"><div class="pulse"></div>AO VIVO</div>
+    <div id="clock">--:--:--</div>
+    <button class="btn-token" onclick="openTokenModal()" title="Configurar token para dados do dia em tempo real">🔑 Token</button>
+  </div>
+</div>
+
+<!-- MODAL TOKEN -->
+<div class="token-modal-overlay" id="token-modal" onclick="closeTokenModal(event)">
+  <div class="token-modal">
+    <div class="token-modal-header">
+      <div>
+        <div style="font-size:16px;font-weight:800;margin-bottom:4px">🔑 Configurar Acesso em Tempo Real</div>
+        <div style="font-size:12px;opacity:.8">Cole o ss_token para ver resultados do dia atual</div>
+      </div>
+      <button class="modal-close" onclick="closeTokenModal()">✕</button>
+    </div>
+    <div class="token-modal-body">
+      <div class="token-steps">
+        <div class="token-step">
+          <div class="token-step-num">1</div>
+          <div>Acesse <strong>app.smarttbot.com</strong> e faça login</div>
+        </div>
+        <div class="token-step">
+          <div class="token-step-num">2</div>
+          <div>Abra o DevTools (⌘+Option+I) → aba <strong>Application</strong> → <strong>Cookies</strong> → <strong>app.smarttbot.com</strong></div>
+        </div>
+        <div class="token-step">
+          <div class="token-step-num">3</div>
+          <div>Encontre o cookie <strong>ss_token</strong> e copie o valor completo</div>
+        </div>
+        <div class="token-step">
+          <div class="token-step-num">4</div>
+          <div>Cole abaixo e clique em Salvar</div>
+        </div>
+      </div>
+      <textarea id="token-input" placeholder="Cole o ss_token aqui (começa com eyJ...)" 
+        style="width:100%;height:100px;margin:16px 0;padding:12px;border:1px solid var(--brd2);border-radius:8px;font-family:'JetBrains Mono',monospace;font-size:11px;resize:none;background:var(--bg);color:var(--txt);outline:none"></textarea>
+      <div id="token-status" style="font-size:12px;color:var(--txt3);margin-bottom:12px;min-height:20px"></div>
+      <div style="display:flex;gap:10px">
+        <button class="btn-g" onclick="saveToken()" style="flex:1;padding:10px">💾 Salvar e Ativar</button>
+        <button class="btn-outline" onclick="clearToken()" style="padding:10px 16px">🗑 Limpar</button>
+      </div>
+      <div style="margin-top:16px;padding:12px;background:var(--amb-lt);border-radius:6px;font-size:11px;color:#92400e">
+        ⚠️ <strong>Segurança:</strong> O token fica salvo apenas no seu navegador (localStorage). Nunca é enviado para terceiros. Recomendamos criar uma conta separada de "leitura" na Smarttbot para uso neste dashboard.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════ HOME ═══════════════════════════════════ -->
+<div class="page active" id="page-home">
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="hero-top">
+      <div class="hero-left">
+        <div class="hero-eye">Smarttbot Manager · Estrategista Certificado</div>
+        <div class="hero-title">Inteligência artificial<br>a favor do seu <em>capital</em></div>
+        <div class="hero-desc">Estratégias 100% automatizadas na B3. Day Trade em mini índice e mini dólar com gestão de risco integrada e transparência total de performance.</div>
+        <div class="hero-pills">
+          <span class="hero-pill">✅ 100% Automatizado</span>
+          <span class="hero-pill">🔒 Risco Controlado</span>
+          <span class="hero-pill">📈 Day Trade B3</span>
+          <span class="hero-pill">☁️ Cloud 24/7</span>
+        </div>
+      </div>
+      <div class="hero-numbers">
+        <div class="hn"><div class="hn-val" id="hn-strats">—</div><div class="hn-lbl">Estratégias</div></div>
+        <div class="hn"><div class="hn-val g" id="hn-best">—</div><div class="hn-lbl">Melhor 6M</div></div>
+        <div class="hn"><div class="hn-val" id="hn-ops">—</div><div class="hn-lbl">Operações</div></div>
+        <div class="hn"><div class="hn-val" id="hn-subs">—</div><div class="hn-lbl">Assinantes</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="main">
+
+    <!-- RESULTADO DO DIA EM TEMPO REAL (só aparece se ss_token configurado) -->
+    <div id="today-live-section" style="display:none">
+      <div class="sec-label">
+        Resultado do Dia — Tempo Real
+        <span class="live-data-badge realtime" style="margin-left:8px">● AO VIVO</span>
+        <span id="today-live-time" style="font-size:10px;color:var(--txt3);margin-left:8px;font-family:'JetBrains Mono',monospace"></span>
+      </div>
+      <div class="today-section">
+        <div class="today-header">
+          <div class="today-title">☁️ Estratégias Cloud · Hoje</div>
+          <div class="today-time" id="today-update-time">Atualizando...</div>
+        </div>
+        <div class="today-grid" id="today-grid"></div>
+        <div style="margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,.1);display:flex;justify-content:space-between;align-items:center">
+          <div style="font-size:11px;opacity:.6">Total das estratégias Cloud hoje:</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700" id="today-total">—</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PERFORMANCE CONSOLIDADA -->
+    <div class="sec-label">Performance Consolidada</div>
+    <div class="chart-card">
+      <div class="chart-card-head">
+        <div class="chart-title">Curva de Capital Média — Portfólio Cloud</div>
+        <div class="period-tabs">
+          <button class="ptab active" onclick="setPeriod('1M',this)">1M</button>
+          <button class="ptab" onclick="setPeriod('3M',this)">3M</button>
+          <button class="ptab" onclick="setPeriod('6M',this)">6M</button>
+        </div>
+      </div>
+      <div class="chart-wrap"><svg class="perf" id="perf-svg" viewBox="0 0 900 180" preserveAspectRatio="none"></svg></div>
+      <div id="perf-legend" style="display:flex;gap:16px;margin-top:12px;flex-wrap:wrap;font-size:11px;color:var(--txt3)"></div>
+    </div>
+
+    <!-- RISCO CONSOLIDADO -->
+    <div class="sec-label">Risco Consolidado · 6 Meses</div>
+    <div class="risk-grid" id="risk-grid"></div>
+
+    <!-- TOP 5 -->
+    <div class="sec-label">Destaques</div>
+    <div class="top5-grid">
+      <div class="top5-card">
+        <div class="top5-head">
+          <div class="top5-title" id="top5-day-title">🏆 Top 5 — Último dia útil</div>
+          <span class="top5-badge day" id="top5-day-badge">CARREGANDO...</span>
+        </div>
+        <div style="font-size:10px;color:var(--txt3);margin-bottom:10px;font-family:'JetBrains Mono',monospace" id="top5-day-note">
+          ⓘ Dados do fechamento do último pregão · A API não fornece dados intraday
+        </div>
+        <table class="top5-table">
+          <thead><tr><th>#</th><th>Estratégia</th><th style="text-align:right" id="top5-day-head">Último dia</th></tr></thead>
+          <tbody id="top5-day"></tbody>
+        </table>
+      </div>
+      <div class="top5-card">
+        <div class="top5-head">
+          <div class="top5-title" id="top5-mon-title">📅 Top 5 — Mês atual</div>
+          <span class="top5-badge month" id="top5-mon-badge">MÊS</span>
+        </div>
+        <div style="font-size:10px;color:var(--txt3);margin-bottom:10px;font-family:'JetBrains Mono',monospace">
+          ⓘ Acumulado do mês do último dado disponível
+        </div>
+        <table class="top5-table">
+          <thead><tr><th>#</th><th>Estratégia</th><th style="text-align:right" id="top5-mon-head">Mês</th></tr></thead>
+          <tbody id="top5-month"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ════════════════════════════════ ESTRATÉGIAS ════════════════════════════════ -->
+<div class="page" id="page-strategies">
+  <div class="main">
+    <div class="sec-label" style="margin-top:0">Estratégias Cloud · <span id="strat-count-lbl">—</span> disponíveis</div>
+    <div class="strat-toolbar">
+      <div class="search-wrap">
+        <input class="strat-search" id="strat-search" placeholder="Buscar estratégia..." oninput="renderStratTable()"/>
+      </div>
+      <select class="sort-select" id="strat-sort" onchange="renderStratTable()">
+        <option value="ret">Retorno 6M ↓</option>
+        <option value="day">Último Dia Útil</option>
+        <option value="month">Resultado Mês</option>
+        <option value="name">Nome A–Z</option>
+        <option value="dd">Menor Drawdown</option>
+        <option value="wr">Taxa de Acerto</option>
+        <option value="subs">Assinantes</option>
+      </select>
+    </div>
+    <div class="strat-table-wrap">
+      <table class="strat-table">
+        <thead><tr>
+          <th>Estratégia</th>
+          <th>Ativo</th>
+          <th>Retorno 6M</th>
+          <th id="strat-day-col-head">Último dia</th>
+          <th>Mês atual</th>
+          <th>Drawdown</th>
+          <th>Acerto</th>
+          <th>Assinantes</th>
+          <th></th>
+        </tr></thead>
+        <tbody id="strat-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════ RESULTADOS ════════════════════════════════ -->
+<div class="page" id="page-results">
+  <div class="main">
+    <div class="sec-label" style="margin-top:0">Tabela de Resultados Diários</div>
+    <div class="results-wrap">
+      <iframe src="https://docs.google.com/spreadsheets/d/1HHq1L9mHQGjrWBXpxuTlYLdt8kGxW8GrQyP65IUmhKc/preview?pli=1#gid=1687620098"
+        allowfullscreen loading="lazy" title="Resultados Cloud Trading"></iframe>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════ PORTFÓLIOS ════════════════════════════════ -->
+<div class="page" id="page-portfolios">
+  <div class="main">
+    <div class="sec-label" style="margin-top:0">
+      Carteiras Recomendadas · Seleção Automática por Critérios
+      <span id="port-status" style="font-size:10px;font-weight:400;color:var(--txt3);margin-left:8px"></span>
+    </div>
+    <div class="port-grid" id="port-grid"></div>
+  </div>
+</div>
+
+<!-- MODAL PORTFÓLIO DETALHADO -->
+<div class="port-modal-overlay" id="port-modal" onclick="closePortModal(event)">
+  <div class="port-modal">
+    <div class="port-modal-header" id="pm-header">
+      <div>
+        <div class="port-modal-title" id="pm-title">—</div>
+        <div class="port-modal-sub" id="pm-sub">—</div>
+      </div>
+      <button class="modal-close" onclick="document.getElementById('port-modal').classList.remove('open')">✕</button>
+    </div>
+    <div class="port-modal-body">
+      <div class="pm-kpi-strip" id="pm-kpis"></div>
+      <div style="margin-bottom:18px">
+        <div class="pm-section-label">Estratégias Selecionadas Automaticamente</div>
+        <div id="pm-strats"></div>
+      </div>
+      <div class="pm-section-label" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <span>Curva de Capital Acumulada</span>
+        <div class="modal-period-tabs">
+          <button class="ptab active" onclick="setPMPeriod('1M',this)">1M</button>
+          <button class="ptab" onclick="setPMPeriod('3M',this)">3M</button>
+          <button class="ptab" onclick="setPMPeriod('6M',this)">6M</button>
+        </div>
+      </div>
+      <div style="height:200px;margin-bottom:10px;background:var(--brd);border-radius:6px;overflow:hidden;padding:4px">
+        <svg id="pm-equity-svg" viewBox="0 0 800 190" preserveAspectRatio="none" style="width:100%;height:100%"></svg>
+      </div>
+      <div id="pm-legend" style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:20px;font-size:11px"></div>
+      <div class="pm-section-label">Evolução Mensal do Portfolio</div>
+      <div style="overflow-x:auto">
+        <table class="monthly-table" style="width:100%;border-collapse:collapse">
+          <thead><tr id="pm-monthly-head"></tr></thead>
+          <tbody id="pm-monthly-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════ PARCEIROS ════════════════════════════════ -->
+<div class="page" id="page-partners">
+  <div class="partner-hero">
+    <h2>Ecossistema Cloud Trading</h2>
+    <p>Construímos parcerias sólidas com as principais plataformas e escritórios do mercado brasileiro.</p>
+    <button class="btn-partner" onclick="alert('Em breve! Entre em contato pelo WhatsApp.')">Quero ser parceiro →</button>
+  </div>
+  <div class="main">
+    <div class="sec-label" style="margin-top:0">Nossos Parceiros</div>
+    <div class="partner-grid">
+      <div class="partner-card"><div class="partner-logo">🤖</div><div class="partner-name">SmarttBot</div><div class="partner-role">Plataforma de automação</div></div>
+      <div class="partner-card"><div class="partner-logo">📊</div><div class="partner-name">OnTick</div><div class="partner-role">Análise e dados</div></div>
+      <div class="partner-card"><div class="partner-logo">☁️</div><div class="partner-name">Cloud Alfa</div><div class="partner-role">Gestão de carteiras</div></div>
+      <div class="partner-card"><div class="partner-logo">🏢</div><div class="partner-name">Cloud Trading</div><div class="partner-role">Estrategista principal</div></div>
+      <div class="partner-card" style="border:2px dashed var(--brd2);background:var(--bg);cursor:pointer" onclick="alert('Entre em contato!')">
+        <div class="partner-logo">➕</div>
+        <div class="partner-name" style="color:var(--txt3)">Seu escritório</div>
+        <div class="partner-role">Seja um parceiro</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- end .app -->
+
+<!-- ════════════════════ MODAL ESTRATÉGIA INDIVIDUAL ════════════════════ -->
+<div class="modal-overlay" id="modal" onclick="closeModal(event)">
+  <div class="modal" id="modal-content">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="m-name">—</div>
+        <div class="modal-meta">
+          <span>☁️ Cloud</span>
+          <span id="m-asset">—</span>
+          <span>Day Trade · B3</span>
+          <span id="m-subs">—</span>
+        </div>
+      </div>
+      <button class="modal-close" onclick="document.getElementById('modal').classList.remove('open')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-metrics" id="m-metrics"></div>
+      <div class="chart-card-head" style="margin-bottom:10px">
+        <div class="chart-title">Curva Patrimonial</div>
+        <div class="modal-period-tabs">
+          <button class="ptab active" onclick="setModalPeriod('1M',this)">1M</button>
+          <button class="ptab" onclick="setModalPeriod('3M',this)">3M</button>
+          <button class="ptab" onclick="setModalPeriod('6M',this)">6M</button>
+        </div>
+      </div>
+      <div class="modal-chart-wrap"><svg class="mchart" id="m-svg" viewBox="0 0 800 220" preserveAspectRatio="none"></svg></div>
+      <div class="sec-label" style="margin-top:20px">Evolução Mensal</div>
+      <table class="monthly-table">
+        <thead><tr><th>Mês</th><th>Resultado</th><th>Acumulado</th></tr></thead>
+        <tbody id="m-monthly"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<div class="footer">
+  <div>Dados via <strong>Smarttbot API</strong> · Estrategista <strong>Cloud</strong> · Atualizado: <span id="upd-time">—</span></div>
+  <div>⚠️ Performance passada não garante resultados futuros · <a href="https://app.smarttbot.com/smarttstore" target="_blank">SmartStore →</a></div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════════════════
+const API = 'https://api.smarttbot.com/smarttbot-manager-api/api/v1/store/products?period=SIX_MONTHS';
+const COLORS = ['#0284c7','#16a34a','#d97706','#7c3aed','#db2777','#0891b2','#ea580c','#4f46e5','#059669','#dc2626','#0369a1','#15803d','#6d28d9','#be185d','#0e7490','#92400e'];
+
+// Estratégias excluídas do site (não aparecem em nenhuma aba nem nos dados estatísticos)
+const EXCLUDED = [
+  'carteira hyperion',
+  'muraganics one',
+  'cloud wallets',
+  'primus one',
+  'groffon one',
+  'devron one',
+  'cloud viserion',
+  'viserion one',
+];
+const REFRESH = 600;
+const MONTHS_PT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+let ALL = [], PERIOD = '6M', MODAL_PROD = null, MODAL_PERIOD = '6M';
+let refreshTimer = REFRESH, refreshInt;
+
+// ─── UTILS ───
+function parseCurve(str) {
+  if (!str) return [];
+  const p = str.split(','), r = [];
+  for (let i = 0; i < p.length; i += 3)
+    if (parseInt(p[i+1]) === 1) { const v = parseFloat(p[i+2]); if (!isNaN(v)) r.push({d:p[i],v}); }
+  return r;
+}
+
+function pct(v, dec=1) { return (v >= 0 ? '+' : '') + (v * 100).toFixed(dec) + '%'; }
+function colCls(v) { return v >= 0 ? 'g' : 'r'; }
+function colStyle(v) { return v >= 0 ? 'color:var(--grn)' : 'color:var(--red)'; }
+
+// Returns {ret, date} of the LAST CLOSED trading day in the curve
+// The API only updates after market close — never intraday
+function lastDayReturn(curve) {
+  const active = curve.filter(p => p.v !== undefined && p.d);
+  if (active.length < 2) return { ret: null, date: null };
+  const last = active[active.length - 1];
+  const prev = active[active.length - 2];
+  return {
+    ret: (last.v / prev.v) - 1,
+    date: last.d   // "YYYY-MM-DD" of the last closed day
+  };
+}
+
+// Keep alias for backward compat in modal
+function todayReturn(curve) { return lastDayReturn(curve).ret; }
+
+// Returns the date label for the last known data point across ALL cloud products
+function getLastDataDate(prods) {
+  let latest = '';
+  prods.forEach(p => {
+    const curve = parseCurve(p.robot?.dailyCumulativePerformance||'');
+    const active = curve.filter(pt => pt.d);
+    if (active.length) {
+      const d = active[active.length-1].d;
+      if (d > latest) latest = d;
+    }
+  });
+  if (!latest) return null;
+  // Format as "Seg, 13 Jun"
+  const [y, m, day] = latest.split('-');
+  const months = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  const days   = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  const dt = new Date(`${latest}T12:00:00`);
+  return { iso: latest, label: `${days[dt.getDay()]}, ${parseInt(day)} ${months[parseInt(m)-1]}` };
+}
+
+// Calculate last-month return (month of last data point, not current calendar month)
+function monthReturn(curve) {
+  if (curve.length < 2) return null;
+  const active = curve.filter(p => p.d);
+  if (!active.length) return null;
+  const lastDate  = active[active.length - 1].d;
+  const lastMonth = lastDate.substring(0, 7);
+  const monthPts  = active.filter(p => p.d.startsWith(lastMonth));
+  if (!monthPts.length) return null;
+  const before    = active.filter(p => p.d < monthPts[0].d);
+  const startVal  = before.length > 0 ? before[before.length-1].v : monthPts[0].v;
+  return (monthPts[monthPts.length-1].v / startVal) - 1;
+}
+
+// Filter curve by period
+function filterCurve(curve, period) {
+  if (!curve.length) return curve;
+  const now = new Date();
+  let cutoff = new Date(now);
+  if (period === '1M') cutoff.setMonth(cutoff.getMonth() - 1);
+  else if (period === '3M') cutoff.setMonth(cutoff.getMonth() - 3);
+  else return curve;
+  const cut = cutoff.toISOString().slice(0,10);
+  return curve.filter(p => p.d >= cut);
+}
+
+// Monthly breakdown
+function monthlyBreakdown(curve) {
+  const months = {};
+  curve.forEach(p => {
+    if (!p.d) return;
+    const key = p.d.slice(0,7);
+    if (!months[key]) months[key] = [];
+    months[key].push(p.v);
+  });
+  const keys = Object.keys(months).sort();
+  return keys.map((k, i) => {
+    const vals = months[k];
+    const startVal = i === 0 ? 1 : months[keys[i-1]][months[keys[i-1]].length-1];
+    const endVal = vals[vals.length-1];
+    const ret = (endVal / startVal) - 1;
+    return { key: k, ret, endVal };
+  });
+}
+
+// ─── DRAW SVG ───
+function drawSVG(svgId, curves, W, H) {
+  const svg = document.getElementById(svgId);
+  if (!svg) return;
+  const P = {t:12, b:20, l:8, r:8};
+  const allV = curves.flatMap(c => c.pts.map(p => p.v));
+  if (!allV.length) { svg.innerHTML = '<text x="50%" y="50%" fill="#94a3b8" text-anchor="middle" dominant-baseline="middle" font-size="12">Sem dados</text>'; return; }
+  const mn = Math.min(...allV), mx = Math.max(...allV), rng = mx - mn || 0.01;
+  const toX = (i,len) => P.l + (i/(len-1)) * (W-P.l-P.r);
+  const toY = v => P.t + (1-(v-mn)/rng) * (H-P.t-P.b);
+
+  let html = '<defs>';
+  curves.forEach((c,i) => {
+    html += `<linearGradient id="g${svgId}${i}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="${c.color}" stop-opacity=".18"/>
+      <stop offset="100%" stop-color="${c.color}" stop-opacity="0"/>
+    </linearGradient>`;
+  });
+  html += '</defs>';
+
+  // zero line
+  const zy = toY(1.0);
+  if (zy > P.t && zy < H-P.b) {
+    html += `<line x1="${P.l}" y1="${zy}" x2="${W-P.r}" y2="${zy}" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="4,3"/>`;
+  }
+
+  curves.forEach((c,i) => {
+    if (c.pts.length < 2) return;
+    const xs = c.pts.map((_,j) => toX(j, c.pts.length));
+    const ys = c.pts.map(p => toY(p.v));
+    let d = `M ${xs[0]} ${ys[0]}`;
+    for (let j=1; j<xs.length; j++) { const cx=(xs[j-1]+xs[j])/2; d+=` C ${cx} ${ys[j-1]},${cx} ${ys[j]},${xs[j]} ${ys[j]}`; }
+    html += `<path d="${d} L ${xs[xs.length-1]} ${H-P.b} L ${xs[0]} ${H-P.b} Z" fill="url(#g${svgId}${i})"/>`;
+    html += `<path d="${d}" fill="none" stroke="${c.color}" stroke-width="2" stroke-linecap="round"/>`;
+    const lx=xs[xs.length-1], ly=ys[ys.length-1];
+    html += `<circle cx="${lx}" cy="${ly}" r="4" fill="${c.color}" stroke="#fff" stroke-width="2"/>`;
+  });
+  svg.innerHTML = html;
+}
+
+// ─── HOME: PERF CHART ───
+function renderPerfChart() {
+  const top = [...ALL].sort((a,b) => (b.robot?.report?.netReturn||0)-(a.robot?.report?.netReturn||0)).slice(0,6);
+  const curves = top.map((p,i) => {
+    const full = parseCurve(p.robot?.dailyCumulativePerformance||'');
+    return { name:p.name, color:COLORS[i%COLORS.length], pts: filterCurve(full, PERIOD) };
+  });
+  drawSVG('perf-svg', curves, 900, 180);
+  document.getElementById('perf-legend').innerHTML = curves.map(c => {
+    const last = c.pts[c.pts.length-1]?.v || 1;
+    const r = ((last-1)*100).toFixed(1);
+    return `<span style="display:flex;align-items:center;gap:5px">
+      <span style="width:10px;height:3px;border-radius:2px;background:${c.color};display:inline-block"></span>
+      <span>${c.name}</span>
+      <span style="font-family:'JetBrains Mono',monospace;font-weight:700;${colStyle(last-1)}">${r>=0?'+':''}${r}%</span>
+    </span>`;
+  }).join('') + (ALL.length > 6 ? `<span style="color:var(--txt3)">+ ${ALL.length-6} estratégias</span>` : '');
+}
+
+function setPeriod(p, btn) {
+  PERIOD = p;
+  document.querySelectorAll('.period-tabs .ptab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderPerfChart();
+}
+
+// ─── HOME: KPIs ───
+function renderHome() {
+  const prods = ALL;
+  const totalOps = prods.reduce((s,p) => s+(p.robot?.report?.numberOfEliminations||0), 0);
+  const byRet = [...prods].sort((a,b) => (b.robot?.report?.netReturn||0)-(a.robot?.report?.netReturn||0));
+  const bestRet = byRet[0]?.robot?.report?.netReturn || 0;
+  const totalSubs = prods.reduce((s,p) => s+(p.total_subscriptions||0), 0);
+  const wrProds = prods.filter(p => p.robot?.report?.percentualNumberOfProfitEliminations);
+  const avgWR = wrProds.reduce((s,p) => s+p.robot.report.percentualNumberOfProfitEliminations, 0) / (wrProds.length||1);
+  const pfProds = prods.filter(p => p.robot?.report?.profitFactor);
+  const avgPF = pfProds.reduce((s,p) => s+p.robot.report.profitFactor, 0) / (pfProds.length||1);
+  const ddProds = prods.filter(p => p.robot?.report?.percentualMaximumDrawdown);
+  const avgDD = ddProds.reduce((s,p) => s+p.robot.report.percentualMaximumDrawdown, 0) / (ddProds.length||1);
+  const totalProfit = prods.reduce((s,p) => s+(p.robot?.report?.totalNetProfit||0), 0);
+
+  // hero numbers
+  document.getElementById('hn-strats').textContent = prods.length;
+  document.getElementById('hn-best').textContent = pct(bestRet);
+  document.getElementById('hn-ops').textContent = totalOps.toLocaleString('pt-BR');
+  document.getElementById('hn-subs').textContent = totalSubs;
+
+  // risk cards
+  const risks = [
+    { ico:'📉', lbl:'Drawdown Médio', val:`${(avgDD*100).toFixed(0)}%`, cls: avgDD<.3?'g':avgDD<.5?'k':'r', sub:'Médio entre estratégias' },
+    { ico:'⚠️', lbl:'Maior Drawdown', val:pct(Math.max(...ddProds.map(p=>p.robot.report.percentualMaximumDrawdown||0))), cls:'r', sub:'Pior estratégia no período' },
+    { ico:'💰', lbl:'Lucro Líquido', val:`R$ ${totalProfit>=0?'+':''}${(totalProfit/1000).toFixed(0)}k`, cls:totalProfit>=0?'g':'r', sub:'Soma de todas estratégias' },
+    { ico:'⚖️', lbl:'Fator de Lucro', val:avgPF.toFixed(2), cls:avgPF>=1.2?'g':avgPF>=1?'k':'r', sub:'Ganhos / perdas médio' },
+    { ico:'🎯', lbl:'Taxa de Acerto', val:`${(avgWR*100).toFixed(0)}%`, cls:avgWR>=.6?'g':avgWR>=.5?'k':'r', sub:'Média consolidada' },
+  ];
+  document.getElementById('risk-grid').innerHTML = risks.map(r =>
+    `<div class="rcard"><div class="rcard-ico">${r.ico}</div><div class="rcard-lbl">${r.lbl}</div><div class="rcard-val ${r.cls}">${r.val}</div><div class="rcard-sub">${r.sub}</div></div>`
+  ).join('');
+
+  // ── TOP 5 ─────────────────────────────────────────────────────────────────
+  // API only updates after market close — compute from last closed day in curve
+  const lastDateInfo = getLastDataDate(prods);
+  const lastDayLabel = lastDateInfo ? lastDateInfo.label : 'Último dia';
+  const lastMonthLabel = lastDateInfo ? (() => {
+    const [y, m] = lastDateInfo.iso.split('-');
+    const months = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    return months[parseInt(m)-1] + '/' + y.slice(2);
+  })() : 'Mês atual';
+
+  // Update badge and header labels dynamically
+  const dayBadge = document.getElementById('top5-day-badge');
+  const monBadge = document.getElementById('top5-mon-badge');
+  const dayTitle = document.getElementById('top5-day-title');
+  const monTitle = document.getElementById('top5-mon-title');
+  const dayHead  = document.getElementById('top5-day-head');
+  const monHead  = document.getElementById('top5-mon-head');
+  if (dayBadge) dayBadge.textContent = lastDayLabel.toUpperCase();
+  if (monBadge) monBadge.textContent = lastMonthLabel.toUpperCase();
+  if (dayTitle) dayTitle.textContent = `🏆 Top 5 — ${lastDayLabel}`;
+  if (monTitle) monTitle.textContent = `📅 Top 5 — ${lastMonthLabel}`;
+  if (dayHead)  dayHead.textContent  = lastDayLabel;
+  if (monHead)  monHead.textContent  = lastMonthLabel;
+
+  const withDay = prods.map(p => {
+    const curve = parseCurve(p.robot?.dailyCumulativePerformance||'');
+    const ld = lastDayReturn(curve);
+    return { name: p.name, day: ld.ret, date: ld.date, month: monthReturn(curve) };
+  });
+
+  // Only include strategies that actually operated on the last known day
+  // (day flag = 1 means the robot was active that day)
+  const withDayActive = prods.map(p => {
+    const raw = p.robot?.dailyCumulativePerformance || '';
+    const parts = raw.split(',');
+    let dayRet = null, date = null, prevV = null, lastV = null, lastActive = null;
+    for (let i = 0; i < parts.length; i += 3) {
+      const d = parts[i], active = parseInt(parts[i+1]), v = parseFloat(parts[i+2]);
+      if (!isNaN(v) && d) {
+        if (active === 1) {
+          if (lastActive !== null) prevV = lastActive.v;
+          lastActive = { d, v };
+        }
+      }
+    }
+    if (lastActive && prevV !== null) {
+      dayRet = (lastActive.v / prevV) - 1;
+      date   = lastActive.d;
+    }
+    return { name: p.name, day: dayRet, date, month: monthReturn(parseCurve(raw)) };
+  });
+
+  // Filter: only strategies whose last active day matches the global last date
+  const activeTodayProds = withDayActive.filter(p =>
+    p.day !== null && p.date === lastDateInfo?.iso
+  );
+
+  const top5Day   = [...activeTodayProds].sort((a,b) => b.day - a.day).slice(0, 5);
+  const top5Month = [...withDay].filter(p => p.month !== null).sort((a,b) => b.month - a.month).slice(0, 5);
+
+  function top5rows(arr, key) {
+    return arr.map((p, i) => `<tr>
+      <td class="rank-num ${i<3?'rank-'+(i+1):''}">${i+1}</td>
+      <td class="strat-name-cell">${p.name}</td>
+      <td class="ret-cell ${colCls(p[key])}">${pct(p[key])}</td>
+    </tr>`).join('');
+  }
+
+  const noDataMsg = `<tr><td colspan="3" style="color:var(--txt3);padding:14px;text-align:center;font-size:12px">
+    Sem dados disponíveis para ${lastDayLabel}
+  </td></tr>`;
+
+  document.getElementById('top5-day').innerHTML   = top5Day.length   ? top5rows(top5Day,   'day')   : noDataMsg;
+  document.getElementById('top5-month').innerHTML = top5Month.length ? top5rows(top5Month, 'month') : noDataMsg;
+
+  renderPerfChart();
+}
+
+// ─── STRATEGY TABLE ───
+function renderStratTable() {
+  const q = document.getElementById('strat-search').value.toLowerCase();
+  const sort = document.getElementById('strat-sort').value;
+
+  let prods = ALL.filter(p => p.name.toLowerCase().includes(q));
+
+  prods = prods.map(p => {
+    const curve = parseCurve(p.robot?.dailyCumulativePerformance||'');
+    const ld = lastDayReturn(curve);
+    return { ...p, _curve: curve, _day: ld.ret, _dayDate: ld.date, _month: monthReturn(curve) };
+  });
+
+  prods.sort((a,b) => {
+    if (sort === 'ret') return (b.robot?.report?.netReturn||0)-(a.robot?.report?.netReturn||0);
+    if (sort === 'day') return (b._day||0)-(a._day||0);
+    if (sort === 'month') return (b._month||0)-(a._month||0);
+    if (sort === 'name') return a.name.localeCompare(b.name);
+    if (sort === 'dd') return (a.robot?.report?.percentualMaximumDrawdown||1)-(b.robot?.report?.percentualMaximumDrawdown||1);
+    if (sort === 'wr') return (b.robot?.report?.percentualNumberOfProfitEliminations||0)-(a.robot?.report?.percentualNumberOfProfitEliminations||0);
+    if (sort === 'subs') return (b.total_subscriptions||0)-(a.total_subscriptions||0);
+    return 0;
+  });
+
+  document.getElementById('strat-count-lbl').textContent = prods.length;
+
+  // Update day column header with actual date
+  const lastDate = getLastDataDate(ALL);
+  const dayColHead = document.getElementById('strat-day-col-head');
+  if (dayColHead && lastDate) dayColHead.textContent = lastDate.label;
+
+  document.getElementById('strat-tbody').innerHTML = prods.map(p => {
+    const r = p.robot?.report || {};
+    const ret = r.netReturn || 0;
+    const dd = (r.percentualMaximumDrawdown||0)*100;
+    const wr = (r.percentualNumberOfProfitEliminations||0)*100;
+    const asset = p.stockCodes?.[0] || 'B3';
+    const dayStr = p._day !== null ? pct(p._day) : '—';
+    const dayC = p._day !== null ? colCls(p._day) : '';
+    const monStr = p._month !== null ? pct(p._month) : '—';
+    const monC = p._month !== null ? colCls(p._month) : '';
+
+    return `<tr onclick="openModal(${p.id})">
+      <td><div class="sname">${p.name}</div><div class="sasset">Cloud · ${asset}</div></td>
+      <td><span class="pill b">${asset}</span></td>
+      <td><span class="mono" style="font-weight:700;${colStyle(ret)}">${pct(ret)}</span></td>
+      <td><span class="mono ${dayC}" style="font-weight:600">${dayStr}</span></td>
+      <td><span class="mono ${monC}" style="font-weight:600">${monStr}</span></td>
+      <td><span class="pill ${dd<25?'g':dd<45?'a':'r'}">${dd.toFixed(0)}%</span></td>
+      <td><span class="pill ${wr>=60?'g':wr>=50?'a':'r'}">${wr.toFixed(0)}%</span></td>
+      <td class="mono">${p.total_subscriptions||0}</td>
+      <td><span class="chevron">›</span></td>
+    </tr>`;
+  }).join('');
+}
+
+// ─── MODAL ───
+function openModal(id) {
+  const p = ALL.find(x => x.id === id);
+  if (!p) return;
+  MODAL_PROD = p;
+  MODAL_PERIOD = '6M';
+  const r = p.robot?.report || {};
+  const ret = r.netReturn || 0;
+  const dd = (r.percentualMaximumDrawdown||0)*100;
+  const wr = (r.percentualNumberOfProfitEliminations||0)*100;
+  const pf = r.profitFactor || 0;
+  const ops = r.numberOfEliminations || 0;
+  const curve = parseCurve(p.robot?.dailyCumulativePerformance||'');
+  const todayR = todayReturn(curve);
+
+  document.getElementById('m-name').textContent = p.name;
+  document.getElementById('m-asset').textContent = '📊 ' + (p.stockCodes?.[0]||'B3');
+  document.getElementById('m-subs').textContent = '👥 ' + (p.total_subscriptions||0) + ' assinantes';
+
+  document.getElementById('m-metrics').innerHTML = [
+    { lbl:'Retorno 6M', val:pct(ret), cls:ret>=0?'g':'r' },
+    { lbl:'Último dia', val: todayR !== null ? pct(todayR) : '—', cls: todayR !== null ? colCls(todayR) : 'k' },
+    { lbl:'Drawdown Máx', val:`${dd.toFixed(0)}%`, cls:dd<25?'g':dd<45?'k':'r' },
+    { lbl:'Taxa de Acerto', val:`${wr.toFixed(0)}%`, cls:wr>=60?'g':wr>=50?'k':'r' },
+    { lbl:'Profit Factor', val:pf.toFixed(2), cls:pf>=1.2?'g':pf>=1?'k':'r' },
+  ].map(m => `<div class="mm"><div class="mm-lbl">${m.lbl}</div><div class="mm-val ${m.cls}">${m.val}</div></div>`).join('');
+
+  renderModalChart();
+  renderMonthlyTable(curve);
+
+  document.getElementById('modal').classList.add('open');
+}
+
+function renderModalChart() {
+  const curve = parseCurve(MODAL_PROD?.robot?.dailyCumulativePerformance||'');
+  const pts = filterCurve(curve, MODAL_PERIOD);
+  drawSVG('m-svg', [{ pts, color:'#0284c7' }], 800, 220);
+}
+
+function setModalPeriod(p, btn) {
+  MODAL_PERIOD = p;
+  document.querySelectorAll('.modal-period-tabs .ptab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderModalChart();
+}
+
+function renderMonthlyTable(curve) {
+  const mb = monthlyBreakdown(curve);
+  document.getElementById('m-monthly').innerHTML = mb.slice(-12).reverse().map(m => {
+    const [y, mo] = m.key.split('-');
+    const label = MONTHS_PT[parseInt(mo)-1] + '/' + y.slice(2);
+    return `<tr>
+      <td>${label}</td>
+      <td class="mono" style="font-weight:700;${colStyle(m.ret)}">${pct(m.ret)}</td>
+      <td class="mono" style="${colStyle(m.endVal-1)}">${pct(m.endVal-1)}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="3" style="color:var(--txt3)">Sem dados mensais</td></tr>';
+}
+
+function closeModal(e) { if (e.target === document.getElementById('modal')) document.getElementById('modal').classList.remove('open'); }
+
+// ─── PORTFOLIO AUTO-SELECTION ENGINE ───
+const PORTFOLIO_CONFIGS = [
+  {
+    id: 'conservative',
+    name: 'Carteira Conservadora',
+    cls: 'conservative',
+    sub: 'Proteção de capital · Baixo risco · Drawdown mínimo',
+    cap: 'R$ 5.000',
+    icon: '🛡️',
+    n: 4,
+    criteria: {
+      minWR: 0.60,          // taxa de acerto mínima
+      maxDD: 0.18,          // drawdown máximo (18%)
+      minPF: 1.4,           // profit factor mínimo
+      minRet: 0.05,         // retorno líquido mínimo 6M
+      maxCorr: 0.45,        // correlação máxima entre setups
+    },
+    sort: p => {            // priorizar: menor DD + maior WR + maior PF
+      const r = p.robot?.report || {};
+      const dd  = r.percentualMaximumDrawdown || 1;
+      const wr  = r.percentualNumberOfProfitEliminations || 0;
+      const pf  = r.profitFactor || 0;
+      const ret = r.netReturn || 0;
+      return wr * 40 + (1 - dd) * 30 + Math.min(pf/3, 1) * 20 + ret * 10;
+    },
+    color: '#0284c7',
+  },
+  {
+    id: 'moderate',
+    name: 'Carteira Moderada',
+    cls: 'moderate',
+    sub: 'Equilíbrio risco × retorno · Diversificação real',
+    cap: 'R$ 10.000',
+    icon: '⚖️',
+    n: 5,
+    criteria: {
+      minWR: 0.55,
+      maxDD: 0.35,
+      minPF: 1.25,
+      minRet: 0.08,
+      maxCorr: 0.50,
+    },
+    sort: p => {
+      const r = p.robot?.report || {};
+      const dd  = r.percentualMaximumDrawdown || 1;
+      const wr  = r.percentualNumberOfProfitEliminations || 0;
+      const pf  = r.profitFactor || 0;
+      const ret = r.netReturn || 0;
+      // Equilíbrio: retorno conta mais aqui
+      return ret * 35 + wr * 25 + (1 - dd) * 20 + Math.min(pf/3, 1) * 20;
+    },
+    color: '#0891b2',
+  },
+  {
+    id: 'aggressive',
+    name: 'Carteira Agressiva',
+    cls: 'aggressive',
+    sub: 'Máximo retorno · Alto risco · Para investidores experientes',
+    cap: 'R$ 20.000',
+    icon: '🚀',
+    n: 6,
+    criteria: {
+      minWR: 0.50,
+      maxDD: 0.65,          // aceita DD maior
+      minPF: 1.15,
+      minRet: 0.10,         // exige retorno mínimo maior
+      maxCorr: 0.55,
+    },
+    sort: p => {
+      const r = p.robot?.report || {};
+      const ret = r.netReturn || 0;
+      const pf  = r.profitFactor || 0;
+      const ops = r.numberOfEliminations || 0;
+      // Prioriza: maior retorno + maior PF + mais operações
+      return ret * 50 + Math.min(pf/4, 1) * 30 + Math.min(ops/500, 1) * 20;
+    },
+    color: '#7c3aed',
+  },
+];
+
+// Compute portfolio stats from a group of products
+function computePortKpis(group) {
+  const curves = group.map(p => parseCurve(p.robot?.dailyCumulativePerformance || ''));
+
+  // Find common date range
+  const allDates = curves.flatMap(c => c.map(pt => pt.d)).filter(Boolean);
+  if (!allDates.length) return null;
+  const minDate = allDates.reduce((a, b) => a < b ? a : b);
+  const maxDate = allDates.reduce((a, b) => a > b ? a : b);
+
+  // Align all curves to common dates with daily values
+  const dateSet = new Set(curves.flatMap(c => c.map(pt => pt.d)));
+  const sortedDates = [...dateSet].filter(d => d >= minDate && d <= maxDate).sort();
+
+  if (sortedDates.length < 2) return null;
+
+  // For each date, compute average portfolio value (equally weighted)
+  const w = 1 / group.length;
+  const portValues = sortedDates.map(date => {
+    let val = 0;
+    curves.forEach(curve => {
+      // Find closest value on or before this date
+      const pts = curve.filter(pt => pt.d <= date);
+      val += pts.length ? pts[pts.length - 1].v * w : w; // fallback to 1.0 * w
+    });
+    return { d: date, v: val };
+  });
+
+  // Compute monthly returns from portfolio curve
+  const monthlyMap = {};
+  portValues.forEach(pt => {
+    const mo = pt.d.substring(0, 7);
+    monthlyMap[mo] = pt.v; // keep last value of each month
+  });
+  const months = Object.keys(monthlyMap).sort();
+  const monthlyRet = months.map((mo, i) => {
+    if (i === 0) return 0;
+    const prev = monthlyMap[months[i-1]];
+    const curr = monthlyMap[mo];
+    return prev > 0 ? (curr - prev) / prev : 0;
+  }).slice(1);
+  const monthKeys = months.slice(1);
+
+  // Stats
+  const totalRet = portValues[portValues.length - 1].v - 1;
+  const posMonths = monthlyRet.filter(r => r > 0).length;
+  const m = monthlyRet.length ? monthlyRet.reduce((a,b)=>a+b,0)/monthlyRet.length : 0;
+  const s = monthlyRet.length > 1 ? Math.sqrt(monthlyRet.reduce((a,b)=>a+(b-m)**2,0)/monthlyRet.length) : 0;
+  const sharpe = s > 0 ? m / s * Math.sqrt(12) : 0;
+  const worstMonth = monthlyRet.length ? Math.min(...monthlyRet) : 0;
+
+  // Max drawdown on portfolio curve
+  let peak = 0, maxDD = 0;
+  portValues.forEach(pt => {
+    if (pt.v > peak) peak = pt.v;
+    const dd = pt.v - peak;
+    if (dd < maxDD) maxDD = dd;
+  });
+
+  // Avg correlation between pairs (using monthly returns)
+  const corrPairs = [];
+  for (let i = 0; i < group.length; i++) {
+    for (let j = i + 1; j < group.length; j++) {
+      const ci = parseCurve(group[i].robot?.dailyCumulativePerformance || '');
+      const cj = parseCurve(group[j].robot?.dailyCumulativePerformance || '');
+      const mi = {}, mj = {};
+      ci.forEach(pt => { const mo = pt.d?.substring(0,7); if (mo) mi[mo] = pt.v; });
+      cj.forEach(pt => { const mo = pt.d?.substring(0,7); if (mo) mj[mo] = pt.v; });
+      const commonMo = Object.keys(mi).filter(mo => mj[mo]).sort();
+      if (commonMo.length < 4) continue;
+      const ri = commonMo.slice(1).map((mo,k) => mi[mo] - mi[commonMo[k]]);
+      const rj = commonMo.slice(1).map((mo,k) => mj[mo] - mj[commonMo[k]]);
+      corrPairs.push(corrArr(ri, rj));
+    }
+  }
+  const avgCorr = corrPairs.length ? corrPairs.reduce((a,b)=>a+b,0)/corrPairs.length : 0;
+
+  return {
+    totalRet, sharpe, posMonths, nMonths: monthKeys.length,
+    worstMonth, maxDD, avgCorr,
+    monthKeys, monthlyRet, portValues,
+    curves,
+  };
+}
+
+function corrArr(a, b) {
+  if (!a.length || a.length !== b.length) return 0;
+  const ma = a.reduce((s,v)=>s+v,0)/a.length;
+  const mb = b.reduce((s,v)=>s+v,0)/b.length;
+  const num = a.reduce((s,_,i)=>s+(a[i]-ma)*(b[i]-mb),0);
+  const den = Math.sqrt(a.reduce((s,v)=>s+(v-ma)**2,0) * b.reduce((s,v)=>s+(v-mb)**2,0));
+  return den === 0 ? 0 : num / den;
+}
+
+// Mini sparkline SVG for card preview
+function miniEquitySVG(portValues, color, W=280, H=60) {
+  if (!portValues || portValues.length < 2) return '';
+  const vals = portValues.map(pt => pt.v);
+  const mn = Math.min(...vals), mx = Math.max(...vals), rng = mx - mn || 0.01;
+  const xs = vals.map((_, i) => i / (vals.length - 1) * W);
+  const ys = vals.map(v => H - ((v - mn) / rng) * (H - 8) - 4);
+  let d = `M ${xs[0]} ${ys[0]}`;
+  for (let i = 1; i < xs.length; i++) {
+    const cx = (xs[i-1] + xs[i]) / 2;
+    d += ` C ${cx} ${ys[i-1]},${cx} ${ys[i]},${xs[i]} ${ys[i]}`;
+  }
+  const area = d + ` L ${xs[xs.length-1]} ${H} L ${xs[0]} ${H} Z`;
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:60px;display:block">
+    <defs>
+      <linearGradient id="spk-${color.replace('#','')}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="${color}" stop-opacity=".2"/>
+        <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <path d="${area}" fill="url(#spk-${color.replace('#','')})"/>
+    <path d="${d}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="${xs[xs.length-1]}" cy="${ys[ys.length-1]}" r="3.5" fill="${color}" stroke="white" stroke-width="1.5"/>
+  </svg>`;
+}
+
+// Auto-select best non-correlated setups for each portfolio type
+function autoSelectPortfolio(config, allProds) {
+  const { criteria, sort, n } = config;
+
+  // 1. Filter candidates by criteria
+  let candidates = allProds.filter(p => {
+    const r = p.robot?.report || {};
+    return (
+      (r.percentualNumberOfProfitEliminations || 0) >= criteria.minWR &&
+      (r.percentualMaximumDrawdown || 1) <= criteria.maxDD &&
+      (r.profitFactor || 0) >= criteria.minPF &&
+      (r.netReturn || 0) >= criteria.minRet
+    );
+  });
+
+  if (candidates.length < n) return null; // not enough candidates
+
+  // 2. Sort by config-specific score
+  candidates = candidates.sort((a, b) => sort(b) - sort(a));
+
+  // 3. Greedy selection: pick top scored, then add non-correlated ones
+  const selected = [candidates[0]];
+  const getMonthlySeries = p => {
+    const curve = parseCurve(p.robot?.dailyCumulativePerformance || '');
+    const mo = {};
+    curve.forEach(pt => { if (pt.d) mo[pt.d.substring(0,7)] = pt.v; });
+    const keys = Object.keys(mo).sort();
+    return keys.slice(1).map((k,i) => mo[k] - mo[keys[i]]);
+  };
+
+  const series = { [candidates[0].id]: getMonthlySeries(candidates[0]) };
+
+  for (let i = 1; i < candidates.length && selected.length < n; i++) {
+    const p = candidates[i];
+    const ps = getMonthlySeries(p);
+    series[p.id] = ps;
+
+    // Check correlation against all already-selected
+    let maxCorr = -Infinity;
+    for (const sel of selected) {
+      const ss = series[sel.id];
+      const commonLen = Math.min(ps.length, ss.length);
+      if (commonLen < 3) continue;
+      const c = corrArr(ps.slice(-commonLen), ss.slice(-commonLen));
+      if (c > maxCorr) maxCorr = c;
+    }
+
+    if (maxCorr <= criteria.maxCorr) {
+      selected.push(p);
+    }
+  }
+
+  return selected.length >= Math.ceil(n * 0.6) ? selected : null;
+}
+
+// ─── RENDER PORTFOLIOS ───
+function renderPortfolios() {
+  const grid = document.getElementById('port-grid');
+  const status = document.getElementById('port-status');
+
+  // Show building state
+  grid.innerHTML = PORTFOLIO_CONFIGS.map(cfg => `
+    <div class="port-card" style="cursor:default">
+      <div class="port-header ${cfg.cls}">
+        <div class="port-name">${cfg.icon} ${cfg.name}</div>
+        <div class="port-sub">${cfg.sub}</div>
+      </div>
+      <div class="port-body">
+        <div class="port-building">
+          <div class="spinner-sm"></div>
+          Selecionando estratégias automaticamente...
+        </div>
+      </div>
+    </div>`).join('');
+
+  // Async build
+  setTimeout(() => buildPortfolios(), 50);
+}
+
+function buildPortfolios() {
+  const grid = document.getElementById('port-grid');
+  const status = document.getElementById('port-status');
+
+  // Store built portfolios globally for modal access
+  window.BUILT_PORTS = {};
+
+  const cards = PORTFOLIO_CONFIGS.map(cfg => {
+    const selected = autoSelectPortfolio(cfg, ALL);
+
+    if (!selected) {
+      return `<div class="port-card" style="cursor:default">
+        <div class="port-header ${cfg.cls}">
+          <div class="port-name">${cfg.icon} ${cfg.name}</div>
+          <div class="port-sub">${cfg.sub}</div>
+        </div>
+        <div class="port-body">
+          <div class="port-building" style="color:var(--red)">
+            ⚠️ Poucos dados disponíveis para montar esta carteira.
+          </div>
+        </div>
+      </div>`;
+    }
+
+    const kpis = computePortKpis(selected);
+    window.BUILT_PORTS[cfg.id] = { cfg, selected, kpis };
+
+    if (!kpis) {
+      return `<div class="port-card" style="cursor:default">
+        <div class="port-header ${cfg.cls}">
+          <div class="port-name">${cfg.icon} ${cfg.name}</div>
+        </div>
+        <div class="port-body"><div class="port-building">Sem dados de curva suficientes.</div></div>
+      </div>`;
+    }
+
+    const retCls  = kpis.totalRet >= 0 ? 'var(--grn)' : 'var(--red)';
+    const shCls   = kpis.sharpe >= 2 ? 'var(--grn)' : kpis.sharpe >= 1 ? 'var(--amb)' : 'var(--red)';
+    const posPct  = kpis.nMonths > 0 ? kpis.posMonths / kpis.nMonths : 0;
+    const posCls  = posPct >= 0.75 ? 'var(--grn)' : posPct >= 0.60 ? 'var(--amb)' : 'var(--red)';
+
+    const SETUP_COLORS = COLORS.slice(0, selected.length);
+
+    return `<div class="port-card" onclick="openPortModal('${cfg.id}')">
+      <div class="port-header ${cfg.cls}">
+        <div class="port-name">${cfg.icon} ${cfg.name}</div>
+        <div class="port-sub">${cfg.sub}</div>
+        <div class="port-header-kpis">
+          <div class="phk">
+            <div class="phk-val">${(kpis.totalRet*100).toFixed(1)}%</div>
+            <div class="phk-lbl">Retorno 6M</div>
+          </div>
+          <div class="phk">
+            <div class="phk-val">${kpis.sharpe.toFixed(2)}</div>
+            <div class="phk-lbl">Sharpe</div>
+          </div>
+          <div class="phk">
+            <div class="phk-val">${kpis.posMonths}/${kpis.nMonths}</div>
+            <div class="phk-lbl">Meses+</div>
+          </div>
+        </div>
+      </div>
+      <div class="port-body">
+        <div class="port-strats-label">${selected.length} estratégias selecionadas automaticamente</div>
+        <div class="port-strats">
+          ${selected.map((p, i) => `
+            <span class="port-strat-tag">
+              <span class="port-strat-dot" style="background:${SETUP_COLORS[i]}"></span>
+              ${p.name}
+            </span>`).join('')}
+        </div>
+        <div class="port-sparkline">${miniEquitySVG(kpis.portValues, cfg.color)}</div>
+        <div class="port-footer">
+          <div class="port-cap">Capital recomendado: <strong>${cfg.cap}</strong></div>
+          <button class="port-detail-btn">Ver detalhes →</button>
+        </div>
+      </div>
+    </div>`;
+  });
+
+  grid.innerHTML = cards.join('');
+
+  const total = Object.keys(window.BUILT_PORTS).length;
+  status.textContent = `${total} carteiras montadas com dados reais · ${ALL.length} estratégias analisadas`;
+}
+
+// ─── PORTFOLIO MODAL ───
+let PM_PERIOD = '6M';
+let PM_CURRENT = null;
+
+function openPortModal(cfgId) {
+  const port = window.BUILT_PORTS?.[cfgId];
+  if (!port) return;
+  PM_CURRENT = port;
+  PM_PERIOD = '6M';
+
+  const { cfg, selected, kpis } = port;
+  const modal = document.getElementById('port-modal');
+  const header = document.getElementById('pm-header');
+
+  // Header class
+  header.className = `port-modal-header ${cfg.cls}`;
+  document.getElementById('pm-title').textContent = `${cfg.icon} ${cfg.name}`;
+  document.getElementById('pm-sub').textContent = `${cfg.sub} · Capital recomendado: ${cfg.cap} · ${selected.length} estratégias`;
+
+  // KPIs
+  const posPct = kpis.nMonths > 0 ? kpis.posMonths / kpis.nMonths : 0;
+  const avgWR  = selected.reduce((s,p)=>s+(p.robot?.report?.percentualNumberOfProfitEliminations||0),0)/selected.length;
+  const avgPF  = selected.reduce((s,p)=>s+(p.robot?.report?.profitFactor||0),0)/selected.length;
+  const kpiData = [
+    { lbl:'Retorno 6M',    val:`${(kpis.totalRet*100).toFixed(1)}%`, cls: kpis.totalRet>=0?'var(--grn)':'var(--red)' },
+    { lbl:'Sharpe',        val:kpis.sharpe.toFixed(2),               cls: kpis.sharpe>=2?'var(--grn)':kpis.sharpe>=1?'var(--amb)':'var(--red)' },
+    { lbl:'Meses+',        val:`${kpis.posMonths}/${kpis.nMonths}`,   cls: posPct>=0.75?'var(--grn)':posPct>=0.6?'var(--amb)':'var(--red)' },
+    { lbl:'Pior Mês',      val:`${(kpis.worstMonth*100).toFixed(1)}%`,cls: kpis.worstMonth>=-0.05?'var(--grn)':kpis.worstMonth>=-0.15?'var(--amb)':'var(--red)' },
+    { lbl:'Max DD',        val:`${(kpis.maxDD*100).toFixed(1)}%`,     cls: kpis.maxDD>=-0.10?'var(--grn)':kpis.maxDD>=-0.25?'var(--amb)':'var(--red)' },
+    { lbl:'Corr Média',    val:kpis.avgCorr.toFixed(3),              cls: kpis.avgCorr<=0.3?'var(--grn)':kpis.avgCorr<=0.5?'var(--amb)':'var(--red)' },
+  ];
+  document.getElementById('pm-kpis').innerHTML = kpiData.map(k =>
+    `<div class="pm-kpi">
+      <span class="pm-kpi-val" style="color:${k.cls}">${k.val}</span>
+      <span class="pm-kpi-lbl">${k.lbl}</span>
+    </div>`).join('');
+
+  // Strategy rows
+  const SETUP_COLORS = COLORS.slice(0, selected.length);
+  document.getElementById('pm-strats').innerHTML = selected.map((p, i) => {
+    const r = p.robot?.report || {};
+    const ret = (r.netReturn||0)*100;
+    const dd  = (r.percentualMaximumDrawdown||0)*100;
+    const wr  = (r.percentualNumberOfProfitEliminations||0)*100;
+    const pf  = r.profitFactor||0;
+    const retC = ret>=0?'var(--grn)':'var(--red)';
+    const ddC  = dd<=20?'var(--grn)':dd<=40?'var(--amb)':'var(--red)';
+    const wrC  = wr>=60?'var(--grn)':wr>=50?'var(--amb)':'var(--red)';
+    const pfC  = pf>=1.3?'var(--grn)':pf>=1.1?'var(--amb)':'var(--red)';
+    return `<div class="pm-strat-row">
+      <span class="pm-strat-color" style="background:${SETUP_COLORS[i]}"></span>
+      <span class="pm-strat-name">${p.name}</span>
+      <div class="pm-strat-chips">
+        <span class="pm-chip" style="color:${retC};background:${ret>=0?'var(--grn-lt)':'var(--red-lt)'}">Ret ${ret>=0?'+':''}${ret.toFixed(1)}%</span>
+        <span class="pm-chip" style="color:${ddC};background:var(--amb-lt)">DD ${dd.toFixed(0)}%</span>
+        <span class="pm-chip" style="color:${wrC};background:var(--grn-lt)">WR ${wr.toFixed(0)}%</span>
+        <span class="pm-chip" style="color:${pfC};background:var(--blue-lt)">PF ${pf.toFixed(2)}</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Reset period tabs
+  document.querySelectorAll('#port-modal .ptab').forEach((b,i) => b.classList.toggle('active', i===2));
+  PM_PERIOD = '6M';
+
+  renderPMChart();
+  renderPMMonthly();
+
+  modal.classList.add('open');
+}
+
+function setPMPeriod(p, btn) {
+  PM_PERIOD = p;
+  document.querySelectorAll('#port-modal .ptab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderPMChart();
+}
+
+function renderPMChart() {
+  if (!PM_CURRENT) return;
+  const { cfg, selected, kpis } = PM_CURRENT;
+  const svg = document.getElementById('pm-equity-svg');
+  const legend = document.getElementById('pm-legend');
+  const W = 800, H = 190, P = { t:12, b:22, l:8, r:8 };
+  const SETUP_COLORS = COLORS.slice(0, selected.length);
+
+  // Filter by period
+  function filterByPeriod(pts) {
+    if (PM_PERIOD === '6M') return pts;
+    const now = new Date();
+    const cutoff = new Date(now);
+    if (PM_PERIOD === '1M') cutoff.setMonth(cutoff.getMonth()-1);
+    if (PM_PERIOD === '3M') cutoff.setMonth(cutoff.getMonth()-3);
+    const cutStr = cutoff.toISOString().slice(0,10);
+    return pts.filter(pt => pt.d >= cutStr);
+  }
+
+  // Portfolio curve filtered
+  const portFiltered = filterByPeriod(kpis.portValues);
+  // Individual curves filtered
+  const indivCurves = selected.map(p => {
+    const c = parseCurve(p.robot?.dailyCumulativePerformance || '');
+    return filterByPeriod(c);
+  });
+
+  // All values for scale
+  const allVals = [
+    ...portFiltered.map(pt => pt.v),
+    ...indivCurves.flatMap(c => c.map(pt => pt.v)),
+  ];
+  if (!allVals.length) { svg.innerHTML = ''; return; }
+
+  const mn = Math.min(...allVals), mx = Math.max(...allVals), rng = mx - mn || 0.01;
+  const toX = (i, len) => P.l + (i / (len-1)) * (W - P.l - P.r);
+  const toY = v => P.t + (1 - (v - mn) / rng) * (H - P.t - P.b);
+
+  let html = '<defs>';
+  // Portfolio gradient
+  html += `<linearGradient id="port-fill" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="${cfg.color}" stop-opacity=".25"/>
+    <stop offset="100%" stop-color="${cfg.color}" stop-opacity="0"/>
+  </linearGradient>`;
+  selected.forEach((_, i) => {
+    html += `<linearGradient id="indiv-fill-${i}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="${SETUP_COLORS[i]}" stop-opacity=".1"/>
+      <stop offset="100%" stop-color="${SETUP_COLORS[i]}" stop-opacity="0"/>
+    </linearGradient>`;
+  });
+  html += '</defs>';
+
+  // Zero/1.0 line
+  const baseLine = toY(1.0);
+  if (baseLine > P.t && baseLine < H - P.b) {
+    html += `<line x1="${P.l}" y1="${baseLine}" x2="${W-P.r}" y2="${baseLine}" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="5,4"/>`;
+    html += `<text x="${P.l+4}" y="${baseLine-4}" font-size="9" fill="#cbd5e1" font-family="JetBrains Mono">0%</text>`;
+  }
+
+  // Individual curves (thin, behind)
+  indivCurves.forEach((curve, i) => {
+    if (curve.length < 2) return;
+    const xs = curve.map((_, j) => toX(j, curve.length));
+    const ys = curve.map(pt => toY(pt.v));
+    let d = `M ${xs[0]} ${ys[0]}`;
+    for (let j=1; j<xs.length; j++) { const cx=(xs[j-1]+xs[j])/2; d+=` C ${cx} ${ys[j-1]},${cx} ${ys[j]},${xs[j]} ${ys[j]}`; }
+    html += `<path d="${d} L ${xs[xs.length-1]} ${H-P.b} L ${xs[0]} ${H-P.b} Z" fill="url(#indiv-fill-${i})"/>`;
+    html += `<path d="${d}" fill="none" stroke="${SETUP_COLORS[i]}" stroke-width="1.5" stroke-linecap="round" opacity=".65"/>`;
+  });
+
+  // Portfolio curve (thick, on top)
+  if (portFiltered.length >= 2) {
+    const xs = portFiltered.map((_, j) => toX(j, portFiltered.length));
+    const ys = portFiltered.map(pt => toY(pt.v));
+    let d = `M ${xs[0]} ${ys[0]}`;
+    for (let j=1; j<xs.length; j++) { const cx=(xs[j-1]+xs[j])/2; d+=` C ${cx} ${ys[j-1]},${cx} ${ys[j]},${xs[j]} ${ys[j]}`; }
+    html += `<path d="${d} L ${xs[xs.length-1]} ${H-P.b} L ${xs[0]} ${H-P.b} Z" fill="url(#port-fill)"/>`;
+    html += `<path d="${d}" fill="none" stroke="${cfg.color}" stroke-width="2.5" stroke-linecap="round"/>`;
+    const lx = xs[xs.length-1], ly = ys[ys.length-1];
+    html += `<circle cx="${lx}" cy="${ly}" r="5" fill="${cfg.color}" stroke="white" stroke-width="2" style="filter:drop-shadow(0 0 5px ${cfg.color})"/>`;
+    // Final return label
+    const lastRet = ((portFiltered[portFiltered.length-1].v - 1)*100).toFixed(1);
+    html += `<text x="${Math.min(lx+8, W-50)}" y="${ly}" font-size="10" fill="${cfg.color}" font-family="JetBrains Mono" font-weight="700" dominant-baseline="middle">${lastRet>=0?'+':''}${lastRet}%</text>`;
+  }
+
+  svg.innerHTML = html;
+
+  // Legend
+  const portRet = portFiltered.length ? ((portFiltered[portFiltered.length-1].v - 1)*100).toFixed(1) : '—';
+  legend.innerHTML = `
+    <span style="display:flex;align-items:center;gap:6px;font-weight:700">
+      <span style="width:12px;height:3px;background:${cfg.color};display:inline-block;border-radius:2px"></span>
+      Portfolio ${cfg.name.split(' ')[1]}
+      <span style="font-family:'JetBrains Mono',monospace;color:${parseFloat(portRet)>=0?'var(--grn)':'var(--red)'}">${portRet>=0?'+':''}${portRet}%</span>
+    </span>
+    ${selected.map((p,i) => {
+      const c = parseCurve(p.robot?.dailyCumulativePerformance||'');
+      const cf = filterByPeriod(c);
+      const r = cf.length ? ((cf[cf.length-1].v - 1)*100).toFixed(1) : '—';
+      return `<span style="display:flex;align-items:center;gap:5px;opacity:.8">
+        <span style="width:10px;height:2px;background:${SETUP_COLORS[i]};display:inline-block;border-radius:1px"></span>
+        ${p.name}
+        <span style="font-family:'JetBrains Mono',monospace;color:${parseFloat(r)>=0?'var(--grn)':'var(--red)'};font-size:10px">${r>=0?'+':''}${r}%</span>
+      </span>`;
+    }).join('')}`;
+}
+
+function renderPMMonthly() {
+  if (!PM_CURRENT) return;
+  const { selected, kpis } = PM_CURRENT;
+  const { monthKeys, monthlyRet } = kpis;
+
+  // Build individual monthly returns
+  const indivMonthly = selected.map(p => {
+    const curve = parseCurve(p.robot?.dailyCumulativePerformance||'');
+    const mo = {};
+    curve.forEach(pt => { if (pt.d) mo[pt.d.substring(0,7)] = pt.v; });
+    const keys = Object.keys(mo).sort();
+    const ret = {};
+    keys.slice(1).forEach((k,i) => { ret[k] = mo[k] - mo[keys[i]]; });
+    return ret;
+  });
+
+  const head = document.getElementById('pm-monthly-head');
+  head.innerHTML = `<th>Mês</th>${selected.map(p=>`<th title="${p.name}">${p.name.length>14?p.name.substring(0,14)+'…':p.name}</th>`).join('')}<th><strong>Portfolio</strong></th>`;
+
+  const body = document.getElementById('pm-monthly-body');
+  body.innerHTML = monthKeys.map((mo, i) => {
+    const pv = monthlyRet[i];
+    const [y, m] = mo.split('-');
+    const label = MONTHS_PT[parseInt(m)-1] + '/' + y.slice(2);
+    const allPos = indivMonthly.every(im => (im[mo]||0) >= 0);
+    const cells = indivMonthly.map(im => {
+      const v = im[mo] || 0;
+      const vPct = (v*100).toFixed(1);
+      return `<td style="color:${v>=0?'var(--grn)':'var(--red)'}">${v>=0?'+':''}${vPct}%</td>`;
+    });
+    const pvPct = (pv*100).toFixed(1);
+    return `<tr ${allPos?'style="background:rgba(22,163,74,.04)"':''}>
+      <td>${label}</td>
+      ${cells.join('')}
+      <td style="color:${pv>=0?'var(--grn)':'var(--red)'};font-weight:700">${pv>=0?'+':''}${pvPct}%</td>
+    </tr>`;
+  }).join('');
+
+  // Totals row
+  const totals = selected.map((_, si) =>
+    monthKeys.reduce((s, mo) => s + (indivMonthly[si][mo]||0), 0)
+  );
+  const portTotal = monthlyRet.reduce((a,b)=>a+b,0);
+  body.innerHTML += `<tr style="border-top:2px solid var(--brd);font-weight:700">
+    <td>TOTAL</td>
+    ${totals.map(t=>`<td style="color:${t>=0?'var(--grn)':'var(--red)'}">${t>=0?'+':''}${(t*100).toFixed(1)}%</td>`).join('')}
+    <td style="color:${portTotal>=0?'var(--grn)':'var(--red)'}">${portTotal>=0?'+':''}${(portTotal*100).toFixed(1)}%</td>
+  </tr>`;
+}
+
+function closePortModal(e) {
+  if (e.target === document.getElementById('port-modal'))
+    document.getElementById('port-modal').classList.remove('open');
+}
+
+// ─── NAVIGATION ───
+function goPage(id, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  btn.classList.add('active');
+  if (id === 'strategies') renderStratTable();
+  if (id === 'portfolios' && ALL.length) renderPortfolios();
+}
+
+// ─── COUNTDOWN ───
+function startCountdown() {
+  clearInterval(refreshInt);
+  refreshTimer = REFRESH;
+  refreshInt = setInterval(() => {
+    refreshTimer--;
+    if (refreshTimer <= 0) { loadData(); return; }
+    const m = String(Math.floor(refreshTimer/60)).padStart(2,'0');
+    const s = String(refreshTimer%60).padStart(2,'0');
+    const el = document.getElementById('countdown');
+    if (el) el.textContent = `${m}:${s}`;
+  }, 1000);
+}
+
+// ─── CLOCK ───
+setInterval(() => {
+  const el = document.getElementById('clock');
+  if (el) el.textContent = new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'})+' BRT';
+}, 1000);
+
+// ─── FETCH ───
+async function loadData() {
+  try {
+    const silentUpdate = ALL.length > 0;
+    if (!silentUpdate) { document.getElementById('loading').style.display='flex'; }
+    document.getElementById('load-msg').textContent = 'Carregando dados Cloud...';
+
+    const res = await fetch(API, {headers:{'Accept':'application/json'}});
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+
+    const cloud = (data.products||[]).filter(p =>
+      ((p.strategist?.name||'').toLowerCase().includes('cloud') ||
+      (p.name||'').toLowerCase().includes('cloud')) &&
+      !EXCLUDED.includes(p.name.toLowerCase())
+    );
+
+    if (!cloud.length) throw new Error('Nenhuma estratégia Cloud encontrada na API.');
+
+    ALL = cloud;
+    document.getElementById('loading').style.display = 'none';
+
+    renderHome();
+    renderPortfolios();
+
+    const now = new Date().toLocaleTimeString('pt-BR');
+    document.getElementById('upd-time').textContent = now;
+    startCountdown();
+
+    // Load live data if token is configured
+    if (getToken()) setTimeout(loadLiveData, 800);
+
+  } catch(err) {
+    if (ALL.length > 0) { console.warn('Falha no refresh silencioso:', err.message); startCountdown(); return; }
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('page-home').innerHTML = `
+      <div style="padding:60px 40px;text-align:center;color:var(--txt3)">
+        <div style="font-size:40px;margin-bottom:16px">⚠️</div>
+        <div style="font-size:16px;font-weight:700;color:var(--txt);margin-bottom:8px">Erro ao carregar dados</div>
+        <div style="font-size:13px;margin-bottom:20px">${err.message}</div>
+        <div style="font-size:12px;background:var(--red-lt);color:var(--red);padding:16px;border-radius:10px;max-width:480px;margin:0 auto;text-align:left">
+          <strong>Causa provável:</strong> CORS (arquivo aberto localmente).<br>
+          Hospede em qualquer servidor web gratuito como <a href="https://netlify.com" target="_blank">netlify.com</a>.
+        </div>
+      </div>`;
+  }
+}
+
+
+// ═══════════════════════════════════════════════════
+// TOKEN & LIVE DATA SYSTEM
+// ═══════════════════════════════════════════════════
+
+const SMARTTBOT_BASE = 'https://app.smarttbot.com';
+const LIVE_REFRESH_MS = 60 * 60 * 1000; // 1 hora
+let liveRefreshInterval = null;
+let liveRobotIds = null; // cache dos IDs dos robôs Cloud
+
+// ── TOKEN MANAGEMENT ──────────────────────────────
+function getToken() { return localStorage.getItem('smarttbot_ss_token') || ''; }
+
+function openTokenModal() {
+  const existing = getToken();
+  document.getElementById('token-input').value = existing;
+  document.getElementById('token-status').textContent = existing
+    ? '✅ Token configurado · Dados do dia em tempo real ativos'
+    : '';
+  document.getElementById('token-modal').classList.add('open');
+}
+
+function closeTokenModal(e) {
+  if (!e || e.target === document.getElementById('token-modal'))
+    document.getElementById('token-modal').classList.remove('open');
+}
+
+async function saveToken() {
+  const val = document.getElementById('token-input').value.trim();
+  const status = document.getElementById('token-status');
+  if (!val) { status.textContent = '⚠️ Cole o token primeiro'; return; }
+
+  status.textContent = '🔄 Validando token...';
+  status.style.color = 'var(--amb)';
+
+  try {
+    const res = await fetchWithToken('/api/v2/user/profile', val);
+    if (!res.ok) throw new Error('Token inválido (HTTP ' + res.status + ')');
+    const data = await res.json();
+    localStorage.setItem('smarttbot_ss_token', val);
+    status.textContent = `✅ Token válido! Conta: ${data.name || data.email || 'OK'}`;
+    status.style.color = 'var(--grn)';
+    document.querySelector('.btn-token').classList.add('active');
+    document.querySelector('.btn-token').textContent = '🟢 Token';
+    setTimeout(() => {
+      document.getElementById('token-modal').classList.remove('open');
+      loadLiveData();
+    }, 1500);
+  } catch(e) {
+    status.textContent = '❌ ' + e.message + ' — Verifique se o token está completo';
+    status.style.color = 'var(--red)';
+  }
+}
+
+function clearToken() {
+  localStorage.removeItem('smarttbot_ss_token');
+  localStorage.removeItem('smarttbot_robot_ids');
+  document.getElementById('token-input').value = '';
+  document.getElementById('token-status').textContent = '🗑 Token removido';
+  document.querySelector('.btn-token').classList.remove('active');
+  document.querySelector('.btn-token').textContent = '🔑 Token';
+  document.getElementById('today-live-section').style.display = 'none';
+  liveRobotIds = null;
+  if (liveRefreshInterval) clearInterval(liveRefreshInterval);
+}
+
+function fetchWithToken(path, token) {
+  const tk = token || getToken();
+  return fetch(SMARTTBOT_BASE + path, {
+    headers: {
+      'Cookie': `ss_token=${tk}`,
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+    mode: 'cors',
+  });
+}
+
+// ── FIND CLOUD ROBOT IDs ──────────────────────────
+async function getCloudRobotIds() {
+  // Try cache first
+  const cached = localStorage.getItem('smarttbot_robot_ids');
+  if (cached) {
+    try { return JSON.parse(cached); } catch(e) {}
+  }
+
+  // Fetch from authenticated API
+  const res = await fetchWithToken('/api/v2/robos?return_attributes[]=id&return_attributes[]=robotName&return_attributes[]=status&limit=200');
+  if (!res.ok) throw new Error('Erro ao buscar robôs: HTTP ' + res.status);
+  const data = await res.json();
+
+  // Filter Cloud strategies — match by name
+  const excluded = EXCLUDED || [];
+  const cloudRobots = (data.robos || data.robots || data || []).filter(r => {
+    const name = (r.robotName || r.name || '').toLowerCase();
+    return name.includes('cloud') || name.includes('uniform') ||
+           name.includes('tango') || name.includes('charlie') ||
+           name.includes('kilo') || name.includes('golf') ||
+           name.includes('vhagar') || name.includes('alfa') ||
+           name.includes('bravo') || name.includes('echo') ||
+           name.includes('sentinel') || name.includes('silverwing') ||
+           name.includes('omega') || name.includes('tracks') ||
+           name.includes('blitzwing') || name.includes('grimlock') ||
+           name.includes('galvatron') || name.includes('decepticons') ||
+           name.includes('wheeljack') || name.includes('grapple') ||
+           name.includes('rhaegal') || name.includes('c2') ||
+           name.includes('v5') || name.includes('hargen') ||
+           name.includes('adaptus') || name.includes('quintessa') ||
+           name.includes('seasmoke') || name.includes('kamikaze') ||
+           name.includes('midscalper');
+  }).filter(r => !excluded.some(ex => (r.robotName||'').toLowerCase().includes(ex.toLowerCase())));
+
+  localStorage.setItem('smarttbot_robot_ids', JSON.stringify(cloudRobots));
+  return cloudRobots;
+}
+
+// ── FETCH TODAY RESULT FOR ALL CLOUD ROBOTS ───────
+async function loadLiveData() {
+  const token = getToken();
+  if (!token) return;
+
+  const section = document.getElementById('today-live-section');
+  const grid = document.getElementById('today-grid');
+  const timeEl = document.getElementById('today-update-time');
+  const totalEl = document.getElementById('today-total');
+
+  section.style.display = 'block';
+  grid.innerHTML = '<div style="color:rgba(255,255,255,.5);font-size:12px;padding:8px">Carregando dados do dia...</div>';
+
+  try {
+    // Get robot IDs (use ALL from public API first, then try auth)
+    let robots = [];
+
+    // Use ALL products already loaded + try to match with auth API
+    if (ALL.length) {
+      // Build list from public API — we have names and IDs from store
+      robots = ALL.map(p => ({ id: p.id, name: p.name }));
+    }
+
+    if (!robots.length) {
+      grid.innerHTML = '<div style="color:rgba(255,255,255,.5);font-size:12px;padding:8px">Carregue os dados primeiro (aguarde a atualização automática)</div>';
+      return;
+    }
+
+    // Fetch today result for each robot in parallel (batch of 5)
+    const results = [];
+    const BATCH = 5;
+    for (let i = 0; i < robots.length; i += BATCH) {
+      const batch = robots.slice(i, i + BATCH);
+      const batchResults = await Promise.allSettled(
+        batch.map(async r => {
+          const res = await fetchWithToken(
+            `/private/robos/${r.id}/full_report?return_attributes[]=today_net_result&return_attributes[]=today_number_of_eliminations&return_attributes[]=balance`
+          );
+          if (!res.ok) return null;
+          const data = await res.json();
+          const rep = data.report || {};
+          return {
+            id: r.id,
+            name: r.name,
+            todayResult: parseFloat(rep.today_net_result || 0),
+            todayTrades: parseInt(rep.today_number_of_eliminations || 0),
+            balance: parseFloat(rep.balance || 0),
+          };
+        })
+      );
+      batchResults.forEach(r => { if (r.status === 'fulfilled' && r.value) results.push(r.value); });
+    }
+
+    if (!results.length) {
+      grid.innerHTML = '<div style="color:rgba(255,255,255,.5);font-size:12px;padding:8px">Não foi possível buscar dados. Verifique o token.</div>';
+      return;
+    }
+
+    // Sort by today result descending
+    results.sort((a, b) => b.todayResult - a.todayResult);
+
+    // Render grid — show top results
+    const active = results.filter(r => r.todayTrades > 0);
+    const inactive = results.filter(r => r.todayTrades === 0);
+
+    const renderItem = r => {
+      const cls = r.todayResult > 0 ? 'pos' : r.todayResult < 0 ? 'neg' : 'zero';
+      const sign = r.todayResult > 0 ? '+' : '';
+      return `<div class="today-item">
+        <div class="today-item-name" title="${r.name}">${r.name.length > 16 ? r.name.substring(0,16)+'…' : r.name}</div>
+        <div class="today-item-val ${cls}">${sign}R$${Math.abs(r.todayResult).toFixed(2).replace('.',',')}</div>
+        <div class="today-item-trades">${r.todayTrades} trade${r.todayTrades!==1?'s':''} hoje</div>
+      </div>`;
+    };
+
+    // Show active robots first, then inactive
+    let html = '';
+    if (active.length) html += active.map(renderItem).join('');
+    if (inactive.length) {
+      html += inactive.slice(0, 4).map(r =>
+        `<div class="today-item" style="opacity:.4">
+          <div class="today-item-name">${r.name.length > 16 ? r.name.substring(0,16)+'…' : r.name}</div>
+          <div class="today-item-val zero">Sem trades</div>
+          <div class="today-item-trades">não operou hoje</div>
+        </div>`
+      ).join('');
+    }
+    grid.innerHTML = html || '<div style="color:rgba(255,255,255,.5);padding:8px">Nenhum dado disponível</div>';
+
+    // Total
+    const total = active.reduce((s, r) => s + r.todayResult, 0);
+    const totalSign = total > 0 ? '+' : '';
+    totalEl.textContent = `${totalSign}R$${Math.abs(total).toFixed(2).replace('.',',')}`;
+    totalEl.style.color = total > 0 ? '#4ade80' : total < 0 ? '#f87171' : 'rgba(255,255,255,.4)';
+
+    // Update Top5 day with live data
+    updateTop5WithLive(active);
+
+    // Update time
+    const now = new Date();
+    timeEl.textContent = `Atualizado às ${now.toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'})}`;
+    document.getElementById('today-live-time').textContent =
+      `• Dados de ${now.toLocaleDateString('pt-BR')} • próx. atualização em 1h`;
+
+    // Schedule next refresh
+    if (liveRefreshInterval) clearInterval(liveRefreshInterval);
+    liveRefreshInterval = setInterval(loadLiveData, LIVE_REFRESH_MS);
+
+  } catch(e) {
+    console.error('Live data error:', e);
+    grid.innerHTML = `<div style="color:#f87171;font-size:12px;padding:8px">
+      ⚠️ Erro: ${e.message}<br>
+      <span style="opacity:.6;font-size:10px">O token pode ter expirado. Acesse Smarttbot e renove.</span>
+    </div>`;
+  }
+}
+
+// ── UPDATE TOP5 WITH LIVE DATA ────────────────────
+function updateTop5WithLive(liveResults) {
+  if (!liveResults.length) return;
+
+  const sorted = [...liveResults].sort((a,b) => b.todayResult - a.todayResult).slice(0, 5);
+  const today = new Date().toLocaleDateString('pt-BR', {weekday:'short', day:'numeric', month:'short'});
+
+  // Update badge and title
+  const dayBadge = document.getElementById('top5-day-badge');
+  const dayTitle = document.getElementById('top5-day-title');
+  const dayHead  = document.getElementById('top5-day-head');
+  const dayNote  = document.getElementById('top5-day-note');
+
+  if (dayBadge) { dayBadge.textContent = 'HOJE · AO VIVO'; dayBadge.style.background = 'rgba(22,163,74,.15)'; dayBadge.style.color = 'var(--grn)'; }
+  if (dayTitle) dayTitle.textContent = `🏆 Top 5 — Hoje (Tempo Real)`;
+  if (dayHead)  dayHead.textContent  = `${today}`;
+  if (dayNote)  dayNote.innerHTML    = `<span style="color:var(--grn)">🟢 Dados em tempo real via API autenticada · Atualização a cada hora</span>`;
+
+  document.getElementById('top5-day').innerHTML = sorted.map((r, i) => {
+    const cls = r.todayResult >= 0 ? 'g' : 'r';
+    const sign = r.todayResult > 0 ? '+' : '';
+    return `<tr>
+      <td class="rank-num ${i<3?'rank-'+(i+1):''}">${i+1}</td>
+      <td class="strat-name-cell">${r.name}</td>
+      <td class="ret-cell ${cls}">${sign}R$${Math.abs(r.todayResult).toFixed(2).replace('.',',')}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── INIT TOKEN ON LOAD ────────────────────────────
+function initToken() {
+  const token = getToken();
+  if (token) {
+    document.querySelector('.btn-token').classList.add('active');
+    document.querySelector('.btn-token').textContent = '🟢 Token';
+    // Load live data after public data is loaded
+    setTimeout(loadLiveData, 3000);
+  }
+}
+
+loadData();
+initToken();
+
+</script>
+</body>
+</html>
