@@ -1,7 +1,5 @@
-// api/hoje.js
-// Calcula resultado do dia usando a API pública da Smarttbot
-// Usa o último ponto da dailyCumulativePerformance comparado ao penúltimo
-// Não requer autenticação — funciona sem token
+// api/hoje.js — Resultado do último dia fechado em R$
+// Usa initialCapital de cada estratégia para calcular valor financeiro real
 
 const EXCLUDED = [
   'carteira hyperion','muraganics one','cloud wallets',
@@ -29,33 +27,10 @@ function parseCurve(str) {
   const parts = str.split(',');
   const result = [];
   for (let i = 0; i < parts.length; i += 3) {
-    const date = parts[i];
-    const active = parseInt(parts[i+1]);
-    const val = parseFloat(parts[i+2]);
+    const date = parts[i], active = parseInt(parts[i+1]), val = parseFloat(parts[i+2]);
     if (date && !isNaN(val)) result.push({ date, active, val });
   }
   return result;
-}
-
-function getLastDayReturn(curve, initialCapital) {
-  // Filtra só dias ativos
-  const active = curve.filter(p => p.active === 1);
-  if (active.length < 2) return { ret: 0, date: null, tradesHoje: 0 };
-  
-  const last = active[active.length - 1];
-  const prev = active[active.length - 2];
-  
-  // Calcular retorno em R$ baseado no capital inicial
-  const capital = initialCapital || 10000;
-  const retPct = last.val - prev.val; // diferença acumulada
-  const retRS = retPct * capital;
-  
-  return {
-    ret: retRS,
-    retPct: retPct,
-    date: last.date,
-    lastVal: last.val,
-  };
 }
 
 module.exports = async function handler(req, res) {
@@ -67,7 +42,7 @@ module.exports = async function handler(req, res) {
       'https://api.smarttbot.com/smarttbot-manager-api/api/v1/store/products?period=SIX_MONTHS',
       { headers: { 'Accept': 'application/json' } }
     );
-    if (!pubRes.ok) throw new Error('Erro API pública: ' + pubRes.status);
+    if (!pubRes.ok) throw new Error('Erro API: ' + pubRes.status);
     const pubData = await pubRes.json();
 
     const cloudProducts = (pubData.products || []).filter(p =>
@@ -75,10 +50,10 @@ module.exports = async function handler(req, res) {
     );
 
     if (!cloudProducts.length) {
-      return res.status(200).json({ resultados: [], total: 0, ativos: 0, atualizadoEm: new Date().toISOString() });
+      return res.status(200).json({ resultados: [], ultimaData: null, atualizadoEm: new Date().toISOString() });
     }
 
-    // Encontrar a data mais recente entre todos os produtos
+    // Encontrar data mais recente entre todos
     let globalLastDate = '';
     cloudProducts.forEach(p => {
       const curve = parseCurve(p.robot?.dailyCumulativePerformance || '');
@@ -89,52 +64,44 @@ module.exports = async function handler(req, res) {
       }
     });
 
-    // Calcular resultado de cada produto para o último dia
     const resultados = cloudProducts.map(p => {
       const curve = parseCurve(p.robot?.dailyCumulativePerformance || '');
       const active = curve.filter(c => c.active === 1);
       if (active.length < 2) return null;
-      
+
       const last = active[active.length - 1];
-      
-      // Só inclui se o último dia desta estratégia é o mesmo da data global
       if (last.date !== globalLastDate) return null;
-      
+
       const prev = active[active.length - 2];
-      const retPct = last.val - prev.val;
-      
-      // Estimar R$ baseado no capital sugerido ou padrão
-      const capital = parseFloat(p.robot?.report?.initialCapital || 10000);
-      const retRS = retPct * capital;
-      
-      // Número de trades hoje (campo da API pública)
-      const tradesHoje = p.robot?.report?.todayNumberOfEliminations || 0;
+      const retPct = last.val - prev.val; // diferença em ponto percentual da curva normalizada
+
+      // Capital inicial da estratégia para calcular R$
+      const capital = parseFloat(p.robot?.report?.initialCapital || 0);
+      // R$ = diferença percentual × capital inicial
+      const retRS = capital > 0 ? retPct * capital : null;
 
       return {
         id: p.robot?.id,
         nome: p.name,
         resultadoPct: +(retPct * 100).toFixed(2),
-        resultadoRS: +retRS.toFixed(2),
-        tradesHoje: parseInt(tradesHoje),
+        resultadoRS: retRS !== null ? +retRS.toFixed(2) : null,
+        capital: capital,
+        tradesHoje: parseInt(p.robot?.report?.todayNumberOfEliminations || 0),
         ultimaData: last.date,
       };
     }).filter(Boolean);
 
-    const totalPct = resultados.reduce((s, r) => s + r.resultadoPct, 0);
-    const ativos = resultados.filter(r => r.tradesHoje > 0).length;
+    // Ordenar por % decrescente
+    resultados.sort((a, b) => b.resultadoPct - a.resultadoPct);
 
     return res.status(200).json({
-      resultados: resultados.sort((a, b) => b.resultadoPct - a.resultadoPct),
-      totalPct: +totalPct.toFixed(2),
-      total: +totalPct.toFixed(2),
-      ativos,
+      resultados,
       ultimaData: globalLastDate,
+      total: +resultados.reduce((s, r) => s + r.resultadoPct, 0).toFixed(2),
       atualizadoEm: new Date().toISOString(),
-      fonte: 'API pública Smarttbot — resultado do último dia fechado',
     });
 
   } catch (error) {
-    console.error('Erro /api/hoje:', error);
     return res.status(500).json({ error: error.message });
   }
 };

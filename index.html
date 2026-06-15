@@ -417,21 +417,8 @@ svg.mchart{width:100%;height:100%}
 
   <div class="main">
 
-    <!-- RESULTADO DO DIA (atualizado pelo servidor a cada hora via /api/hoje) -->
-    <div id="hoje-section" style="display:none;margin-bottom:24px">
-      <div class="sec-label">
-        Resultado do Dia · Tempo Real
-        <span id="hoje-badge" style="margin-left:8px;font-size:10px;padding:2px 8px;border-radius:4px;background:rgba(22,163,74,.12);color:var(--grn);border:1px solid rgba(22,163,74,.25);font-weight:700;letter-spacing:.06em">● AO VIVO</span>
-        <span id="hoje-time" style="margin-left:8px;font-size:10px;color:var(--txt3);font-family:'JetBrains Mono',monospace"></span>
-      </div>
-      <div style="background:linear-gradient(135deg,#0c1a2e,#0f2744);border-radius:14px;padding:20px 24px;color:#fff">
-        <div id="hoje-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:14px"></div>
-        <div style="padding-top:14px;border-top:1px solid rgba(255,255,255,.1);display:flex;justify-content:space-between;align-items:center">
-          <span style="font-size:11px;opacity:.6">Total Cloud hoje</span>
-          <span id="hoje-total" style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700">—</span>
-        </div>
-      </div>
-    </div>
+    <!-- RESULTADO DO DIA — processado em JS, atualiza Top5 automaticamente -->
+    <div id="hoje-section" style="display:none"></div>
 
     <!-- PERFORMANCE CONSOLIDADA -->
     <div class="sec-label">Performance Consolidada</div>
@@ -1756,41 +1743,8 @@ async function loadHoje() {
     const data = await res.json();
     if (!data.resultados || !data.resultados.length) return;
 
-    const section = document.getElementById('hoje-section');
-    const grid    = document.getElementById('hoje-grid');
-    const total   = document.getElementById('hoje-total');
-    const timeEl  = document.getElementById('hoje-time');
-
-    section.style.display = 'block';
-
-    // Atualizar Top5 com dados reais
+    // Atualiza apenas o Top5 — sem seção preta
     atualizarTop5Hoje(data.resultados, data.ultimaData);
-
-    // Render cards — mostrar só os que operaram (resultadoPct != 0)
-    const ativos = data.resultados.filter(r => r.resultadoPct !== 0);
-    const mostrar = ativos.length > 0 ? ativos : data.resultados.slice(0, 10);
-
-    grid.innerHTML = mostrar.map(r => {
-      const v = r.resultadoPct;
-      const cor = v > 0 ? '#4ade80' : v < 0 ? '#f87171' : 'rgba(255,255,255,.4)';
-      const sinal = v > 0 ? '+' : '';
-      const nome = r.nome.length > 16 ? r.nome.substring(0, 16) + '…' : r.nome;
-      return `<div style="background:rgba(255,255,255,.07);border-radius:8px;padding:12px 14px">
-        <div style="font-size:10px;opacity:.6;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.nome}">${nome}</div>
-        <div style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;color:${cor}">${sinal}${Math.abs(v).toFixed(2)}%</div>
-        <div style="font-size:9px;opacity:.45;margin-top:2px">${r.tradesHoje > 0 ? r.tradesHoje + ' trade' + (r.tradesHoje !== 1 ? 's' : '') : data.ultimaData || ''}</div>
-      </div>`;
-    }).join('');
-
-    // Total
-    const t = data.total || 0;
-    total.textContent = (t >= 0 ? '+' : '') + Math.abs(t).toFixed(2) + '%';
-    total.style.color = t > 0 ? '#4ade80' : t < 0 ? '#f87171' : 'rgba(255,255,255,.4)';
-
-    // Timestamp
-    const dt = new Date(data.atualizadoEm);
-    const dataLabel = data.ultimaData || '';
-    timeEl.textContent = `${dataLabel} · atualizado ${dt.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}`;
 
   } catch (e) {
     console.log('Dados do dia não disponíveis:', e.message);
@@ -1798,7 +1752,6 @@ async function loadHoje() {
 }
 
 function atualizarTop5Hoje(resultados, ultimaData) {
-  // Usar todos os resultados ordenados por resultadoPct
   const top5 = [...resultados]
     .filter(r => r.resultadoPct !== 0)
     .sort((a, b) => b.resultadoPct - a.resultadoPct)
@@ -1806,12 +1759,12 @@ function atualizarTop5Hoje(resultados, ultimaData) {
 
   if (!top5.length) return;
 
-  // Formatar data do último dado
+  // Formatar data
   let dataLabel = ultimaData || '';
   if (dataLabel) {
     const [y, m, d] = dataLabel.split('-');
     const meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-    const dias = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+    const dias   = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
     const dt = new Date(`${dataLabel}T12:00:00`);
     dataLabel = `${dias[dt.getDay()]}, ${parseInt(d)} ${meses[parseInt(m)-1]}`;
   }
@@ -1821,19 +1774,25 @@ function atualizarTop5Hoje(resultados, ultimaData) {
   const head  = document.getElementById('top5-day-head');
   const note  = document.getElementById('top5-day-note');
 
-  if (badge) { badge.textContent = dataLabel.toUpperCase(); badge.style.background = 'rgba(22,163,74,.15)'; badge.style.color = 'var(--grn)'; badge.style.border = '1px solid rgba(22,163,74,.3)'; }
+  if (badge) { badge.textContent = dataLabel.toUpperCase(); badge.style.background='rgba(22,163,74,.15)'; badge.style.color='var(--grn)'; badge.style.border='1px solid rgba(22,163,74,.3)'; }
   if (title) title.textContent = `🏆 Top 5 — ${dataLabel}`;
   if (head)  head.textContent  = dataLabel;
-  if (note)  note.innerHTML    = `<span style="color:var(--grn)">🟢 Resultado do último dia fechado · via servidor</span>`;
+  if (note)  note.innerHTML    = `<span style="color:var(--grn)">🟢 Resultado do último pregão fechado · atualizado pelo servidor</span>`;
 
   document.getElementById('top5-day').innerHTML = top5.map((r, i) => {
-    const cls   = r.resultadoPct >= 0 ? 'g' : 'r';
-    const sinal = r.resultadoPct > 0 ? '+' : '';
+    // Mostrar R$ se disponível, senão %
+    const temRS = r.resultadoRS !== null && r.resultadoRS !== undefined && r.capital > 0;
+    const val   = temRS ? r.resultadoRS : r.resultadoPct;
+    const cls   = val >= 0 ? 'g' : 'r';
+    const sinal = val > 0 ? '+' : '';
+    const fmt   = temRS
+      ? `${sinal}R$${Math.abs(val).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})}`
+      : `${sinal}${Math.abs(r.resultadoPct).toFixed(2)}%`;
     const nome  = r.nome.length > 20 ? r.nome.substring(0,20)+'…' : r.nome;
     return `<tr>
-      <td class="rank-num ${i < 3 ? 'rank-'+(i+1) : ''}">${i+1}</td>
+      <td class="rank-num ${i<3?'rank-'+(i+1):''}">${i+1}</td>
       <td class="strat-name-cell">${nome}</td>
-      <td class="ret-cell ${cls}">${sinal}${Math.abs(r.resultadoPct).toFixed(2)}%</td>
+      <td class="ret-cell ${cls}">${fmt}</td>
     </tr>`;
   }).join('');
 }
