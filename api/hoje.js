@@ -1,5 +1,7 @@
 // api/hoje.js
-// Usa os IDs da API pública + ss_token para buscar resultado do dia
+// Calcula resultado do dia usando a API pública da Smarttbot
+// Usa o último ponto da dailyCumulativePerformance comparado ao penúltimo
+// Não requer autenticação — funciona sem token
 
 const EXCLUDED = [
   'carteira hyperion','muraganics one','cloud wallets',
@@ -22,16 +24,45 @@ function isCloud(name, strategist) {
   ) && !EXCLUDED.some(ex => n.includes(ex));
 }
 
+function parseCurve(str) {
+  if (!str) return [];
+  const parts = str.split(',');
+  const result = [];
+  for (let i = 0; i < parts.length; i += 3) {
+    const date = parts[i];
+    const active = parseInt(parts[i+1]);
+    const val = parseFloat(parts[i+2]);
+    if (date && !isNaN(val)) result.push({ date, active, val });
+  }
+  return result;
+}
+
+function getLastDayReturn(curve, initialCapital) {
+  // Filtra só dias ativos
+  const active = curve.filter(p => p.active === 1);
+  if (active.length < 2) return { ret: 0, date: null, tradesHoje: 0 };
+  
+  const last = active[active.length - 1];
+  const prev = active[active.length - 2];
+  
+  // Calcular retorno em R$ baseado no capital inicial
+  const capital = initialCapital || 10000;
+  const retPct = last.val - prev.val; // diferença acumulada
+  const retRS = retPct * capital;
+  
+  return {
+    ret: retRS,
+    retPct: retPct,
+    date: last.date,
+    lastVal: last.val,
+  };
+}
+
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-
-  const token = process.env.SMARTTBOT_TOKEN;
-  if (!token) {
-    return res.status(503).json({ error: 'SMARTTBOT_TOKEN não configurado no Vercel' });
-  }
+  res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=300');
 
   try {
-    // 1. Buscar produtos Cloud da API pública (já temos IDs dos robôs)
     const pubRes = await fetch(
       'https://api.smarttbot.com/smarttbot-manager-api/api/v1/store/products?period=SIX_MONTHS',
       { headers: { 'Accept': 'application/json' } }
@@ -47,64 +78,59 @@ module.exports = async function handler(req, res) {
       return res.status(200).json({ resultados: [], total: 0, ativos: 0, atualizadoEm: new Date().toISOString() });
     }
 
-    // 2. Para cada produto Cloud, buscar resultado do dia usando o robot ID
-    const BATCH = 4;
-    const resultados = [];
+    // Encontrar a data mais recente entre todos os produtos
+    let globalLastDate = '';
+    cloudProducts.forEach(p => {
+      const curve = parseCurve(p.robot?.dailyCumulativePerformance || '');
+      const active = curve.filter(c => c.active === 1);
+      if (active.length) {
+        const last = active[active.length - 1].date;
+        if (last > globalLastDate) globalLastDate = last;
+      }
+    });
 
-    for (let i = 0; i < cloudProducts.length; i += BATCH) {
-      const batch = cloudProducts.slice(i, i + BATCH);
-      const batchRes = await Promise.allSettled(
-        batch.map(async (p) => {
-          const robotId = p.robot?.id;
-          if (!robotId) return null;
+    // Calcular resultado de cada produto para o último dia
+    const resultados = cloudProducts.map(p => {
+      const curve = parseCurve(p.robot?.dailyCumulativePerformance || '');
+      const active = curve.filter(c => c.active === 1);
+      if (active.length < 2) return null;
+      
+      const last = active[active.length - 1];
+      
+      // Só inclui se o último dia desta estratégia é o mesmo da data global
+      if (last.date !== globalLastDate) return null;
+      
+      const prev = active[active.length - 2];
+      const retPct = last.val - prev.val;
+      
+      // Estimar R$ baseado no capital sugerido ou padrão
+      const capital = parseFloat(p.robot?.report?.initialCapital || 10000);
+      const retRS = retPct * capital;
+      
+      // Número de trades hoje (campo da API pública)
+      const tradesHoje = p.robot?.report?.todayNumberOfEliminations || 0;
 
-          try {
-            const r = await fetch(
-              `https://app.smarttbot.com/private/robos/${robotId}/full_report?return_attributes[]=today_net_result&return_attributes[]=today_number_of_eliminations`,
-              {
-                headers: {
-                  'Cookie': `ss_token=${token}`,
-                  'Accept': 'application/json',
-                  'User-Agent': 'Mozilla/5.0',
-                  'Referer': 'https://app.smarttbot.com/',
-                },
-              }
-            );
-            if (!r.ok) return null;
-            const d = await r.json();
-            const rep = d.report || {};
-            return {
-              id: robotId,
-              nome: p.name,
-              resultadoHoje: parseFloat(rep.today_net_result || 0),
-              tradesHoje: parseInt(rep.today_number_of_eliminations || 0),
-            };
-          } catch { return null; }
-        })
-      );
-      batchRes.forEach(r => { if (r.status === 'fulfilled' && r.value) resultados.push(r.value); });
-    }
+      return {
+        id: p.robot?.id,
+        nome: p.name,
+        resultadoPct: +(retPct * 100).toFixed(2),
+        resultadoRS: +retRS.toFixed(2),
+        tradesHoje: parseInt(tradesHoje),
+        ultimaData: last.date,
+      };
+    }).filter(Boolean);
 
-    const validos = resultados.filter(Boolean);
+    const totalPct = resultados.reduce((s, r) => s + r.resultadoPct, 0);
+    const ativos = resultados.filter(r => r.tradesHoje > 0).length;
 
-    // Se nenhum retornou (token inválido), retornar erro claro
-    if (!validos.length && cloudProducts.length > 0) {
-      return res.status(401).json({
-        error: 'Token expirado',
-        message: 'Renove o SMARTTBOT_TOKEN no Vercel → Environment Variables',
-        totalProdutos: cloudProducts.length,
-      });
-    }
-
-    const total = validos.reduce((s, r) => s + r.resultadoHoje, 0);
-    const ativos = validos.filter(r => r.tradesHoje > 0).length;
-
-    res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=300');
     return res.status(200).json({
-      resultados: validos.sort((a, b) => b.resultadoHoje - a.resultadoHoje),
-      total: +total.toFixed(2),
+      resultados: resultados.sort((a, b) => b.resultadoPct - a.resultadoPct),
+      totalPct: +totalPct.toFixed(2),
+      total: +totalPct.toFixed(2),
       ativos,
+      ultimaData: globalLastDate,
       atualizadoEm: new Date().toISOString(),
+      fonte: 'API pública Smarttbot — resultado do último dia fechado',
     });
 
   } catch (error) {
