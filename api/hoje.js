@@ -1,17 +1,10 @@
 // api/hoje.js
 // Busca resultado do dia de cada robô Cloud usando ss_token das variáveis de ambiente
 // O token fica APENAS no servidor Vercel — nunca exposto ao visitante
-// Atualiza a cada 1 hora via cache do Vercel
 
 const EXCLUDED = [
-  'carteira hyperion',
-  'muraganics one',
-  'cloud wallets',
-  'primus one',
-  'groffon one',
-  'devron one',
-  'cloud viserion',
-  'viserion one',
+  'carteira hyperion','muraganics one','cloud wallets',
+  'primus one','groffon one','devron one','cloud viserion','viserion one',
 ];
 
 function isCloud(name) {
@@ -26,11 +19,15 @@ function isCloud(name) {
     n.includes('wheeljack') || n.includes('grapple') || n.includes('rhaegal') ||
     n.includes('c2') || n.includes('v5') || n.includes('hargen') ||
     n.includes('adaptus') || n.includes('quintessa') || n.includes('seasmoke') ||
-    n.includes('kamikaze') || n.includes('midscalper') || n.includes('bravo')
+    n.includes('kamikaze') || n.includes('midscalper')
   ) && !EXCLUDED.some(ex => n.includes(ex));
 }
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
+  // CORS
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET');
+
   const token = process.env.SMARTTBOT_TOKEN;
 
   if (!token) {
@@ -41,7 +38,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    // 1. Buscar lista de robôs do usuário
+    // Buscar lista de robôs do usuário
     const robosRes = await fetch('https://app.smarttbot.com/private/robos', {
       headers: {
         'Cookie': `ss_token=${token}`,
@@ -53,35 +50,58 @@ export default async function handler(req, res) {
     if (!robosRes.ok) {
       if (robosRes.status === 401 || robosRes.status === 403) {
         return res.status(401).json({
-          error: 'Token expirado ou inválido',
-          message: 'Renove o SMARTTBOT_TOKEN nas variáveis de ambiente do Vercel',
+          error: 'Token expirado',
+          message: 'Renove o SMARTTBOT_TOKEN no Vercel',
         });
       }
       throw new Error(`Erro ao buscar robôs: ${robosRes.status}`);
     }
 
-    const robosData = await robosRes.json();
-    const todosRobos = robosData.robos || robosData.robots || robosData || [];
+    // A resposta de /private/robos é HTML da página — precisamos da API JSON
+    // Usar o endpoint correto da API autenticada
+    const statsRes = await fetch('https://app.smarttbot.com/api/v2/user/stats', {
+      headers: {
+        'Cookie': `ss_token=${token}`,
+        'Accept': 'application/json',
+      },
+    });
 
-    // 2. Filtrar apenas estratégias Cloud
-    const cloudRobos = todosRobos.filter(r => isCloud(r.robotName || r.name || ''));
+    if (!statsRes.ok) throw new Error(`Stats error: ${statsRes.status}`);
 
-    if (!cloudRobos.length) {
+    // Buscar da API pública os IDs Cloud e depois pegar resultado autenticado
+    const publicRes = await fetch(
+      'https://api.smarttbot.com/smarttbot-manager-api/api/v1/store/products?period=SIX_MONTHS',
+      { headers: { 'Accept': 'application/json' } }
+    );
+
+    if (!publicRes.ok) throw new Error('Erro API pública');
+    const publicData = await publicRes.json();
+
+    const cloudProducts = (publicData.products || []).filter(p =>
+      isCloud(p.strategist?.name || '') || isCloud(p.name || '')
+    );
+
+    if (!cloudProducts.length) {
       return res.status(200).json({
-        resultados: [],
-        total: 0,
+        resultados: [], total: 0, ativos: 0,
         atualizadoEm: new Date().toISOString(),
-        aviso: 'Nenhum robô Cloud encontrado nesta conta',
+        aviso: 'Nenhum produto Cloud encontrado',
       });
     }
 
-    // 3. Buscar resultado do dia de cada robô em paralelo
-    const resultados = await Promise.all(
-      cloudRobos.map(async (robo) => {
-        try {
-          const id = robo.id || robo.robotId;
-          const reportRes = await fetch(
-            `https://app.smarttbot.com/private/robos/${id}/full_report?return_attributes[]=today_net_result&return_attributes[]=today_number_of_eliminations&return_attributes[]=balance`,
+    // Buscar resultado do dia de cada robô em paralelo (batches de 5)
+    const BATCH = 5;
+    const resultados = [];
+
+    for (let i = 0; i < cloudProducts.length; i += BATCH) {
+      const batch = cloudProducts.slice(i, i + BATCH);
+      const batchRes = await Promise.allSettled(
+        batch.map(async (p) => {
+          const robotId = p.robot?.id;
+          if (!robotId) return null;
+
+          const r = await fetch(
+            `https://app.smarttbot.com/private/robos/${robotId}/full_report?return_attributes[]=today_net_result&return_attributes[]=today_number_of_eliminations`,
             {
               headers: {
                 'Cookie': `ss_token=${token}`,
@@ -90,42 +110,39 @@ export default async function handler(req, res) {
             }
           );
 
-          if (!reportRes.ok) return null;
-
-          const reportData = await reportRes.json();
-          const report = reportData.report || {};
+          if (!r.ok) return null;
+          const d = await r.json();
+          const rep = d.report || {};
 
           return {
-            id,
-            nome: robo.robotName || robo.name,
-            resultadoHoje: parseFloat(report.today_net_result || 0),
-            tradesHoje: parseInt(report.today_number_of_eliminations || 0),
-            saldo: parseFloat(report.balance || 0),
+            id: robotId,
+            nome: p.name,
+            resultadoHoje: parseFloat(rep.today_net_result || 0),
+            tradesHoje: parseInt(rep.today_number_of_eliminations || 0),
           };
-        } catch {
-          return null;
-        }
-      })
-    );
+        })
+      );
 
-    // 4. Filtrar nulos e calcular total
+      batchRes.forEach(r => {
+        if (r.status === 'fulfilled' && r.value) resultados.push(r.value);
+      });
+    }
+
     const validos = resultados.filter(Boolean);
     const total = validos.reduce((s, r) => s + r.resultadoHoje, 0);
-    const ativos = validos.filter(r => r.tradesHoje > 0);
+    const ativos = validos.filter(r => r.tradesHoje > 0).length;
 
-    // Cache de 1 hora no servidor
     res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=300');
-    res.setHeader('Content-Type', 'application/json');
 
     return res.status(200).json({
       resultados: validos.sort((a, b) => b.resultadoHoje - a.resultadoHoje),
       total: +total.toFixed(2),
-      ativos: ativos.length,
+      ativos,
       atualizadoEm: new Date().toISOString(),
     });
 
   } catch (error) {
-    console.error('Erro em /api/hoje:', error);
+    console.error('Erro /api/hoje:', error);
     return res.status(500).json({ error: error.message });
   }
-}
+};
