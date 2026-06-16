@@ -9,6 +9,8 @@
   ],
   "rewrites": [
     { "source": "/analise", "destination": "/analise/index.html" },
-    { "source": "/analise/(.*)", "destination": "/analise/index.html" }
+    { "source": "/analise/(.*)", "destination": "/analise/index.html" },
+    { "source": "/", "destination": "/index.html" }
   ]
 }
+
