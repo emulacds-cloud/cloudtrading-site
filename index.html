@@ -212,9 +212,27 @@ svg.mchart{width:100%;height:100%}
 .monthly-table td{padding:9px 10px;border-bottom:1px solid #f1f5f9;font-size:12px}
 .monthly-table tr:last-child td{border:none}
 
-/* ── RESULTS (iframe) ── */
-.results-wrap{background:var(--card);border:1px solid var(--brd);border-radius:14px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.04);height:calc(100vh - 200px);min-height:500px}
-.results-wrap iframe{width:100%;height:100%;border:none;display:block}
+/* ── RESULTS TABLE ── */
+.results-header{display:flex;align-items:center;justify-content:space-between;padding:20px 28px;background:linear-gradient(135deg,#0c3a1e,#166534);border-radius:14px;color:#fff;margin-bottom:16px}
+.results-logo-txt{font-size:22px;font-weight:900;letter-spacing:-.01em}
+.results-logo-txt span{color:#4ade80}
+.results-sub{font-size:10px;opacity:.65;text-transform:uppercase;letter-spacing:.1em;margin-top:3px}
+.results-table-wrap{background:var(--card);border:1px solid var(--brd);border-radius:14px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.results-table{width:100%;border-collapse:collapse;font-size:12px}
+.results-table thead tr{background:#0f172a;color:#fff}
+.results-table thead th{padding:10px 16px;text-align:right;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;white-space:nowrap}
+.results-table thead th:first-child{text-align:left;min-width:140px}
+.results-table .section-row td{background:#1e293b;color:#94a3b8;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;padding:6px 16px}
+.results-table tbody tr{border-bottom:1px solid var(--brd);transition:background .1s}
+.results-table tbody tr:hover{background:#f8fafc}
+.results-table tbody tr:last-child{border:none}
+.results-table td{padding:9px 16px;text-align:right;font-family:'JetBrains Mono',monospace;font-size:11px;white-space:nowrap}
+.results-table td:first-child{text-align:left;font-family:'Inter',sans-serif;font-weight:600;font-size:12px;color:var(--txt)}
+.results-table .pos{color:var(--grn);font-weight:700}
+.results-table .neg{color:var(--red);font-weight:700}
+.results-table .zero{color:var(--txt3)}
+.results-table .total-row td{background:#f1f5f9;font-weight:700;font-size:12px;border-top:2px solid #0f172a}
+.results-loading{padding:48px;text-align:center;color:var(--txt3);font-size:13px}
 
 /* ── PORTFOLIOS ── */
 .port-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:28px}
@@ -510,10 +528,38 @@ svg.mchart{width:100%;height:100%}
 <!-- ════════════════════════════════ RESULTADOS ════════════════════════════════ -->
 <div class="page" id="page-results">
   <div class="main">
-    <div class="sec-label" style="margin-top:0">Tabela de Resultados Diários</div>
-    <div class="results-wrap">
-      <iframe src="https://docs.google.com/spreadsheets/d/1HHq1L9mHQGjrWBXpxuTlYLdt8kGxW8GrQyP65IUmhKc/preview?pli=1#gid=1687620098"
-        allowfullscreen loading="lazy" title="Resultados Cloud Trading"></iframe>
+    <div class="results-header">
+      <div>
+        <div class="results-logo-txt">☁️ CLOUD <span>TRADING</span></div>
+        <div class="results-sub">Resultado Geral · Carteiras Recomendadas · Plataforma Smarttbot</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:9px;opacity:.6;margin-bottom:3px;text-transform:uppercase;letter-spacing:.08em">Último pregão</div>
+        <div id="results-date" style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700">—</div>
+      </div>
+    </div>
+    <div class="results-table-wrap">
+      <div id="results-loading" class="results-loading">
+        <div class="spinner-sm" style="margin:0 auto 12px"></div>
+        Carregando resultados...
+      </div>
+      <table class="results-table" id="results-table" style="display:none">
+        <thead>
+          <tr>
+            <th style="text-align:left">Estratégia</th>
+            <th id="results-col-day">DIA</th>
+            <th>MÊS</th>
+            <th>ANO 2026</th>
+            <th>6 Meses</th>
+            <th>Drawdown</th>
+            <th>Acerto</th>
+          </tr>
+        </thead>
+        <tbody id="results-tbody"></tbody>
+      </table>
+    </div>
+    <div style="margin-top:10px;font-size:11px;color:var(--txt3);text-align:center">
+      ⓘ Valores em % · Dados via Smarttbot API · Atualização automática a cada hora
     </div>
   </div>
 </div>
@@ -1659,6 +1705,116 @@ function goPage(id, btn) {
   btn.classList.add('active');
   if (id === 'strategies') renderStratTable();
   if (id === 'portfolios' && ALL.length) renderPortfolios();
+  if (id === 'results') renderResults();
+}
+
+// ── TABELA DE RESULTADOS ──────────────────────────
+async function renderResults() {
+  const loading = document.getElementById('results-loading');
+  const table   = document.getElementById('results-table');
+  const tbody   = document.getElementById('results-tbody');
+  const dateEl  = document.getElementById('results-date');
+  const colDay  = document.getElementById('results-col-day');
+
+  if (!loading || !table || !tbody) return;
+  loading.style.display = 'block';
+  table.style.display   = 'none';
+
+  try {
+    // Buscar resultado do dia
+    const hojeRes  = await fetch('/api/hoje');
+    const hojeData = hojeRes.ok ? await hojeRes.json() : null;
+    const hojeMap  = {};
+    if (hojeData?.resultados) {
+      hojeData.resultados.forEach(r => {
+        hojeMap[r.nome.trim()] = r;
+        hojeMap[r.nome] = r;
+      });
+    }
+
+    // Data do último pregão
+    const ultimaData = hojeData?.ultimaData || '';
+    if (ultimaData && dateEl) {
+      const [y,m,d] = ultimaData.split('-');
+      const meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+      const dias  = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+      const dt    = new Date(`${ultimaData}T12:00:00`);
+      const label = `${dias[dt.getDay()]}, ${parseInt(d)} ${meses[parseInt(m)-1]}`;
+      dateEl.textContent = label;
+      if (colDay) colDay.textContent = label;
+    }
+
+    if (!ALL.length) { loading.innerHTML = 'Aguarde os dados carregarem...'; return; }
+
+    const rows = ALL.map(p => {
+      const r     = p.robot?.report || {};
+      const curve = parseCurve(p.robot?.dailyCumulativePerformance || '');
+      const hoje  = hojeMap[p.name.trim()] || null;
+
+      const diaRS  = hoje?.resultadoRS ?? null;
+      const diaPct = hoje?.resultadoPct ?? null;
+      const mesRet = monthReturn(curve);
+
+      const pts26  = curve.filter(pt => pt.d >= '2026-01-01');
+      const bef26  = curve.filter(pt => pt.d < '2026-01-01');
+      let anoRet   = null;
+      if (pts26.length) {
+        const sv = bef26.length ? bef26[bef26.length-1].v : pts26[0].v;
+        anoRet   = (pts26[pts26.length-1].v - sv) / sv;
+      }
+
+      return {
+        nome:   p.name,
+        diaRS,  diaPct,
+        mesRet, anoRet,
+        ret6m:  parseFloat(r.netReturn || 0),
+        dd:     parseFloat(r.percentualMaximumDrawdown || 0),
+        wr:     parseFloat(r.percentualNumberOfProfitEliminations || 0),
+      };
+    }).sort((a, b) => a.nome.localeCompare(b.nome));
+
+    const fmtPct = v => {
+      if (v === null || v === undefined || isNaN(v)) return '<span class="zero">—</span>';
+      const cls = v > 0 ? 'pos' : v < 0 ? 'neg' : 'zero';
+      return `<span class="${cls}">${v>0?'+':''}${(v*100).toFixed(1)}%</span>`;
+    };
+    const fmtDia = (rs, pct) => {
+      if (rs !== null && rs !== undefined) {
+        const cls = rs > 0 ? 'pos' : rs < 0 ? 'neg' : 'zero';
+        return `<span class="${cls}">${rs>0?'+':''}R$${Math.abs(rs).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>`;
+      }
+      if (pct !== null && pct !== undefined) {
+        const cls = pct > 0 ? 'pos' : pct < 0 ? 'neg' : 'zero';
+        return `<span class="${cls}">${pct>0?'+':''}${Math.abs(pct).toFixed(2)}%</span>`;
+      }
+      return '<span class="zero">—</span>';
+    };
+
+    tbody.innerHTML = rows.map(r => `<tr>
+      <td>${r.nome}</td>
+      <td>${fmtDia(r.diaRS, r.diaPct)}</td>
+      <td>${fmtPct(r.mesRet)}</td>
+      <td>${fmtPct(r.anoRet)}</td>
+      <td>${fmtPct(r.ret6m)}</td>
+      <td class="${r.dd>0.3?'neg':r.dd>0.15?'zero':'pos'}">${(r.dd*100).toFixed(1)}%</td>
+      <td class="${r.wr>=0.6?'pos':r.wr>=0.5?'zero':'neg'}">${(r.wr*100).toFixed(1)}%</td>
+    </tr>`).join('');
+
+    // Total do dia
+    const totRS  = rows.reduce((s,r) => r.diaRS!==null ? s+(r.diaRS||0) : s, 0);
+    const temRS  = rows.some(r => r.diaRS !== null);
+    tbody.innerHTML += `<tr class="total-row">
+      <td>TOTAL DO DIA</td>
+      <td>${temRS ? `<span class="${totRS>=0?'pos':'neg'}">${totRS>=0?'+':''}R$${Math.abs(totRS).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>` : '—'}</td>
+      <td colspan="5"></td>
+    </tr>`;
+
+    loading.style.display = 'none';
+    table.style.display   = 'table';
+
+  } catch(e) {
+    loading.innerHTML = `<span style="color:var(--red)">Erro: ${e.message}</span>`;
+  }
 }
 
 // ─── COUNTDOWN ───
