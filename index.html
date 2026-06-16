@@ -212,27 +212,9 @@ svg.mchart{width:100%;height:100%}
 .monthly-table td{padding:9px 10px;border-bottom:1px solid #f1f5f9;font-size:12px}
 .monthly-table tr:last-child td{border:none}
 
-/* ── RESULTS TABLE ── */
-.results-header{display:flex;align-items:center;gap:16px;margin-bottom:20px;padding:20px 24px;background:linear-gradient(135deg,#0c3a1e,#166534);border-radius:14px;color:#fff}
-.results-logo{font-size:28px;font-weight:900;letter-spacing:-.02em}
-.results-logo span{color:#4ade80}
-.results-subtitle{font-size:11px;opacity:.7;margin-top:2px;letter-spacing:.06em;text-transform:uppercase}
-.results-table-wrap{background:var(--card);border:1px solid var(--brd);border-radius:14px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.04)}
-.results-table{width:100%;border-collapse:collapse;font-size:12px}
-.results-table thead tr{background:#0f172a;color:#fff}
-.results-table thead th{padding:10px 14px;text-align:right;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;white-space:nowrap}
-.results-table thead th:first-child{text-align:left;min-width:130px}
-.results-table tbody tr{border-bottom:1px solid var(--brd);transition:background .1s}
-.results-table tbody tr:hover{background:#f8fafc}
-.results-table tbody tr:last-child{border:none}
-.results-table td{padding:9px 14px;text-align:right;font-family:'JetBrains Mono',monospace;font-size:11px;white-space:nowrap}
-.results-table td:first-child{text-align:left;font-family:'Inter',sans-serif;font-weight:600;font-size:12px;color:var(--txt)}
-.results-table .pos{color:var(--grn);font-weight:600}
-.results-table .neg{color:var(--red);font-weight:600}
-.results-table .zero{color:var(--txt3)}
-.results-table tfoot tr{background:#f8fafc;border-top:2px solid #0f172a}
-.results-table tfoot td{font-weight:700;font-size:12px;padding:11px 14px}
-.results-loading{padding:40px;text-align:center;color:var(--txt3);font-size:13px}
+/* ── RESULTS (iframe) ── */
+.results-wrap{background:var(--card);border:1px solid var(--brd);border-radius:14px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.04);height:calc(100vh - 200px);min-height:500px}
+.results-wrap iframe{width:100%;height:100%;border:none;display:block}
 
 /* ── PORTFOLIOS ── */
 .port-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:28px}
@@ -435,9 +417,6 @@ svg.mchart{width:100%;height:100%}
 
   <div class="main">
 
-    <!-- RESULTADO DO DIA — processado em JS, atualiza Top5 automaticamente -->
-    <div id="hoje-section" style="display:none"></div>
-
     <!-- PERFORMANCE CONSOLIDADA -->
     <div class="sec-label">Performance Consolidada</div>
     <div class="chart-card">
@@ -531,52 +510,10 @@ svg.mchart{width:100%;height:100%}
 <!-- ════════════════════════════════ RESULTADOS ════════════════════════════════ -->
 <div class="page" id="page-results">
   <div class="main">
-
-    <!-- Header estilo planilha Cloud -->
-    <div class="results-header">
-      <div>
-        <div class="results-logo">☁️ CLOUD <span>TRADING</span></div>
-        <div class="results-subtitle">Resultado Geral · Carteiras Recomendadas · Plataforma Smarttbot</div>
-      </div>
-      <div style="margin-left:auto;text-align:right">
-        <div style="font-size:10px;opacity:.6;margin-bottom:4px">Última atualização</div>
-        <div id="results-updated" style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700">—</div>
-      </div>
-    </div>
-
-    <!-- Tabela -->
-    <div class="results-table-wrap">
-      <div id="results-loading" class="results-loading">
-        <div class="spinner-sm" style="margin:0 auto 10px"></div>
-        Carregando resultados...
-      </div>
-      <table class="results-table" id="results-table" style="display:none">
-        <thead>
-          <tr>
-            <th style="text-align:left">Estratégia</th>
-            <th id="results-day-head">DIA</th>
-            <th>MÊS</th>
-            <th>ANO 2026</th>
-            <th>Máx. Entrada</th>
-            <th>Máx. Acumulado</th>
-            <th>Início</th>
-          </tr>
-        </thead>
-        <tbody id="results-tbody"></tbody>
-        <tfoot>
-          <tr id="results-tfoot">
-            <td>TOTAL SMARTTBOT</td>
-            <td id="results-total-day" class="neg">—</td>
-            <td id="results-total-month">—</td>
-            <td id="results-total-year">—</td>
-            <td colspan="3"></td>
-          </tr>
-        </tfoot>
-      </table>
-    </div>
-
-    <div style="margin-top:12px;font-size:11px;color:var(--txt3);text-align:center">
-      ⓘ Valores em R$ · Capital por contrato · Dados via Smarttbot API
+    <div class="sec-label" style="margin-top:0">Tabela de Resultados Diários</div>
+    <div class="results-wrap">
+      <iframe src="https://docs.google.com/spreadsheets/d/1HHq1L9mHQGjrWBXpxuTlYLdt8kGxW8GrQyP65IUmhKc/preview?pli=1#gid=1687620098"
+        allowfullscreen loading="lazy" title="Resultados Cloud Trading"></iframe>
     </div>
   </div>
 </div>
@@ -974,15 +911,20 @@ function renderHome() {
   const top5Day   = [...activeTodayProds].sort((a,b) => b.day - a.day).slice(0, 5);
   const top5Month = [...withDay].filter(p => p.month !== null).sort((a,b) => b.month - a.month).slice(0, 5);
 
+  function top5rows(arr, key) {
+    return arr.map((p, i) => `<tr>
+      <td class="rank-num ${i<3?'rank-'+(i+1):''}">${i+1}</td>
+      <td class="strat-name-cell">${p.name}</td>
+      <td class="ret-cell ${colCls(p[key])}">${pct(p[key])}</td>
+    </tr>`).join('');
+  }
+
   const noDataMsg = `<tr><td colspan="3" style="color:var(--txt3);padding:14px;text-align:center;font-size:12px">
     Sem dados disponíveis para ${lastDayLabel}
   </td></tr>`;
 
   document.getElementById('top5-day').innerHTML   = top5Day.length   ? top5rows(top5Day,   'day')   : noDataMsg;
   document.getElementById('top5-month').innerHTML = top5Month.length ? top5rows(top5Month, 'month') : noDataMsg;
-
-  // Sobrescreve imediatamente com R$ do /api/hoje
-  loadHoje();
 
   renderPerfChart();
 }
@@ -1115,10 +1057,10 @@ const PORTFOLIO_CONFIGS = [
     icon: '🛡️',
     n: 4,
     criteria: {
-      minWR: 0.50,          // taxa de acerto mínima
-      maxDD: 0.35,          // drawdown máximo (35%)
-      minPF: 1.2,           // profit factor mínimo
-      minRet: 0.03,         // retorno líquido mínimo 6M
+      minWR: 0.60,          // taxa de acerto mínima
+      maxDD: 0.18,          // drawdown máximo (18%)
+      minPF: 1.4,           // profit factor mínimo
+      minRet: 0.05,         // retorno líquido mínimo 6M
       maxCorr: 0.45,        // correlação máxima entre setups
     },
     sort: p => {            // priorizar: menor DD + maior WR + maior PF
@@ -1717,7 +1659,6 @@ function goPage(id, btn) {
   btn.classList.add('active');
   if (id === 'strategies') renderStratTable();
   if (id === 'portfolios' && ALL.length) renderPortfolios();
-  if (id === 'results' && ALL.length) renderResults();
 }
 
 // ─── COUNTDOWN ───
@@ -1788,180 +1729,7 @@ async function loadData() {
   }
 }
 
-// ── RESULTADO DO DIA VIA SERVIDOR ──────────────────
-// Busca /api/hoje que roda no servidor Vercel com o token configurado
-// O visitante nunca vê o token — fica 100% no servidor
-async function loadHoje() {
-  try {
-    const res = await fetch('/api/hoje');
-    if (!res.ok) return;
-
-    const data = await res.json();
-    if (!data.resultados || !data.resultados.length) return;
-
-    // Atualiza apenas o Top5 — sem seção preta
-    atualizarTop5Hoje(data.resultados, data.ultimaData);
-
-  } catch (e) {
-    console.log('Dados do dia não disponíveis:', e.message);
-  }
-}
-
-function atualizarTop5Hoje(resultados, ultimaData) {
-  const top5 = [...resultados]
-    .filter(r => r.resultadoPct !== 0)
-    .sort((a, b) => b.resultadoPct - a.resultadoPct)
-    .slice(0, 5);
-
-  if (!top5.length) return;
-
-  // Formatar data
-  let dataLabel = ultimaData || '';
-  if (dataLabel) {
-    const [y, m, d] = dataLabel.split('-');
-    const meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-    const dias   = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
-    const dt = new Date(`${dataLabel}T12:00:00`);
-    dataLabel = `${dias[dt.getDay()]}, ${parseInt(d)} ${meses[parseInt(m)-1]}`;
-  }
-
-  const badge = document.getElementById('top5-day-badge');
-  const title = document.getElementById('top5-day-title');
-  const head  = document.getElementById('top5-day-head');
-  const note  = document.getElementById('top5-day-note');
-
-  if (badge) { badge.textContent = dataLabel.toUpperCase(); badge.style.background='rgba(22,163,74,.15)'; badge.style.color='var(--grn)'; badge.style.border='1px solid rgba(22,163,74,.3)'; }
-  if (title) title.textContent = `🏆 Top 5 — ${dataLabel}`;
-  if (head)  head.textContent  = dataLabel;
-  if (note)  note.innerHTML    = `<span style="color:var(--grn)">🟢 Resultado do último pregão fechado · atualizado pelo servidor</span>`;
-
-  document.getElementById('top5-day').innerHTML = top5.map((r, i) => {
-    // Mostrar R$ se disponível, senão %
-    const temRS = r.resultadoRS !== null && r.resultadoRS !== undefined && r.capital > 0;
-    const val   = temRS ? r.resultadoRS : r.resultadoPct;
-    const cls   = val >= 0 ? 'g' : 'r';
-    const sinal = val > 0 ? '+' : '';
-    const fmt   = temRS
-      ? `${sinal}R$${Math.abs(val).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})}`
-      : `${sinal}${Math.abs(r.resultadoPct).toFixed(2)}%`;
-    const nome  = r.nome.length > 20 ? r.nome.substring(0,20)+'…' : r.nome;
-    return `<tr>
-      <td class="rank-num ${i<3?'rank-'+(i+1):''}">${i+1}</td>
-      <td class="strat-name-cell">${nome}</td>
-      <td class="ret-cell ${cls}">${fmt}</td>
-    </tr>`;
-  }).join('');
-}
-
 loadData();
-setInterval(loadHoje, 60 * 60 * 1000);
-async function renderResults() {
-  const loading = document.getElementById('results-loading');
-  const table   = document.getElementById('results-table');
-  const tbody   = document.getElementById('results-tbody');
-  const updated = document.getElementById('results-updated');
-  const dayHead = document.getElementById('results-day-head');
-
-  loading.style.display = 'block';
-  loading.innerHTML = '<div class="spinner-sm" style="margin:0 auto 10px"></div>Carregando resultados...';
-  table.style.display = 'none';
-
-  try {
-    // Buscar via servidor (evita CORS do Google)
-    const res = await fetch('/api/planilha');
-    if (!res.ok) throw new Error('Erro ao buscar planilha');
-    const csv = await res.text();
-
-    // Parse CSV simples
-    const lines = csv.split('\n').map(l => l.split(',').map(c => c.replace(/^"|"$/g,'').trim()));
-
-    // Encontrar linha de cabeçalho e seções
-    // Estrutura: linhas com dados após cabeçalhos
-    const fmt = (val) => {
-      if (!val || val === '' || val === '-' || val === '—') return '<span class="zero">—</span>';
-      // Limpar formatação do Google Sheets
-      const clean = val.replace(/R\$\s?/g,'').replace(/\./g,'').replace(',','.').trim();
-      const num   = parseFloat(clean);
-      if (isNaN(num)) return `<span class="zero">${val}</span>`;
-      const cls   = num > 0 ? 'pos' : num < 0 ? 'neg' : 'zero';
-      const sinal = num > 0 ? '+' : '';
-      return `<span class="${cls}">${sinal}R$${Math.abs(num).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>`;
-    };
-
-    // Identificar linhas de dados — pular cabeçalhos e linhas vazias
-    // Procurar pela coluna "ESTRATÉGIA" para achar o início dos dados
-    let headerRow = -1;
-    let section   = ''; // SMARTTBOT ou ENTRADA
-    const smarttbotRows = [];
-    const entradaRows   = [];
-    let totalRow        = null;
-    let totalEntrada    = null;
-
-    lines.forEach((cols, i) => {
-      const first = (cols[0] || '').toUpperCase();
-      if (first.includes('ESTRATÉGIA') || first.includes('ESTRATEGIA')) { headerRow = i; return; }
-      if (first.includes('SMARTTBOT'))  { section = 'smarttbot'; return; }
-      if (first.includes('CARTEIRAS ENTRADA') || first.includes('ENTRADA')) { section = 'entrada'; return; }
-      if (first.includes('TOTAL SMARTTBOT')) { totalRow = cols; return; }
-      if (first === 'TOTAL' && section === 'entrada') { totalEntrada = cols; return; }
-      if (cols[0] && cols[0].trim() && headerRow >= 0 && !first.includes('PLATAFORMA')) {
-        if (section === 'smarttbot') smarttbotRows.push(cols);
-        else if (section === 'entrada') entradaRows.push(cols);
-      }
-    });
-
-    // Atualizar header com data do dia (coluna DIA da planilha)
-    if (headerRow >= 0 && lines[headerRow]) {
-      const diaCol = lines[headerRow][1] || 'DIA';
-      if (dayHead) dayHead.textContent = diaCol;
-      if (updated) updated.textContent = new Date().toLocaleDateString('pt-BR');
-    }
-
-    // Render função para uma seção
-    const renderSection = (rows, label) => {
-      if (!rows.length) return '';
-      const header = `<tr style="background:#1e293b"><td colspan="7" style="color:#94a3b8;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;padding:6px 14px">${label}</td></tr>`;
-      const data = rows.map(cols => `<tr>
-        <td>${cols[0] || '—'}</td>
-        <td>${fmt(cols[1])}</td>
-        <td>${fmt(cols[2])}</td>
-        <td>${fmt(cols[3])}</td>
-        <td style="text-align:center;color:var(--txt3)">${cols[4] || '—'}</td>
-        <td style="text-align:center;color:var(--txt3)">${cols[5] || '—'}</td>
-        <td style="color:var(--txt3);font-size:10px">${cols[6] || '—'}</td>
-      </tr>`).join('');
-      return header + data;
-    };
-
-    const renderTotal = (cols, label) => {
-      if (!cols) return '';
-      return `<tr style="background:#f1f5f9;border-top:2px solid #0f172a">
-        <td style="font-weight:700">${label}</td>
-        <td>${fmt(cols[1])}</td>
-        <td>${fmt(cols[2])}</td>
-        <td>${fmt(cols[3])}</td>
-        <td colspan="3"></td>
-      </tr>`;
-    };
-
-    tbody.innerHTML =
-      renderSection(smarttbotRows, 'Carteiras Recomendadas · Plataforma Smarttbot') +
-      renderTotal(totalRow, 'TOTAL SMARTTBOT') +
-      renderSection(entradaRows, 'Carteiras de Entrada') +
-      renderTotal(totalEntrada, 'TOTAL');
-
-    // Esconder tfoot padrão pois já está no tbody
-    document.getElementById('results-tfoot').style.display = 'none';
-
-    loading.style.display = 'none';
-    table.style.display   = 'table';
-
-  } catch(e) {
-    loading.innerHTML = `<span style="color:var(--red)">Erro ao carregar planilha: ${e.message}</span>`;
-    console.error(e);
-  }
-}
-
 </script>
 </body>
 </html>
