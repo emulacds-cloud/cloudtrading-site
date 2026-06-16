@@ -1994,10 +1994,14 @@ const GRATIS_CFG = {
 const GRATIS_CACHE = {};
 
 function findGratisProd(nome) {
-  const lower = nome.toLowerCase();
-  let p = ALL.find(x => x.name.toLowerCase().includes(lower));
+  const ALIASES = {
+    'lynx':     ['lynx', 'n8'],
+    'venaciti': ['venaciti', 'v5'],
+  };
+  const terms = ALIASES[nome.toLowerCase()] || [nome.toLowerCase()];
+  let p = ALL.find(x => terms.some(t => x.name.toLowerCase().includes(t)));
   if (!p && window._ALL_PRODS)
-    p = window._ALL_PRODS.find(x => (x.name||'').toLowerCase().includes(lower));
+    p = window._ALL_PRODS.find(x => terms.some(t => (x.name||'').toLowerCase().includes(t)));
   return p || null;
 }
 
