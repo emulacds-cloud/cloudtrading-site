@@ -972,6 +972,9 @@ function renderHome() {
   document.getElementById('top5-day').innerHTML   = top5Day.length   ? top5rows(top5Day,   'day')   : noDataMsg;
   document.getElementById('top5-month').innerHTML = top5Month.length ? top5rows(top5Month, 'month') : noDataMsg;
 
+  // Sobrescreve Top5 do dia com R$ assim que /api/hoje responder
+  loadHoje();
+
   renderPerfChart();
 }
 
@@ -1886,6 +1889,7 @@ async function loadData() {
 }
 
 loadData();
+setInterval(loadHoje, 60 * 60 * 1000); // atualiza Top5 e Resultados a cada hora
 </script>
 </body>
 </html>
