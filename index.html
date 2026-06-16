@@ -972,9 +972,6 @@ function renderHome() {
   document.getElementById('top5-day').innerHTML   = top5Day.length   ? top5rows(top5Day,   'day')   : noDataMsg;
   document.getElementById('top5-month').innerHTML = top5Month.length ? top5rows(top5Month, 'month') : noDataMsg;
 
-  // Sobrescreve Top5 do dia com R$ assim que /api/hoje responder
-  loadHoje();
-
   renderPerfChart();
 }
 
@@ -1106,11 +1103,11 @@ const PORTFOLIO_CONFIGS = [
     icon: '🛡️',
     n: 4,
     criteria: {
-      minWR: 0.60,          // taxa de acerto mínima
-      maxDD: 0.18,          // drawdown máximo (18%)
-      minPF: 1.4,           // profit factor mínimo
-      minRet: 0.05,         // retorno líquido mínimo 6M
-      maxCorr: 0.45,        // correlação máxima entre setups
+      minWR: 0.50,          // taxa de acerto mínima
+      maxDD: 0.40,          // drawdown máximo (40%)
+      minPF: 1.1,           // profit factor mínimo
+      minRet: 0.02,         // retorno líquido mínimo 6M
+      maxCorr: 0.55,        // correlação máxima entre setups
     },
     sort: p => {            // priorizar: menor DD + maior WR + maior PF
       const r = p.robot?.report || {};
@@ -1889,7 +1886,6 @@ async function loadData() {
 }
 
 loadData();
-setInterval(loadHoje, 60 * 60 * 1000); // atualiza Top5 e Resultados a cada hora
 </script>
 </body>
 </html>
