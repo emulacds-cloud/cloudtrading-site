@@ -974,20 +974,15 @@ function renderHome() {
   const top5Day   = [...activeTodayProds].sort((a,b) => b.day - a.day).slice(0, 5);
   const top5Month = [...withDay].filter(p => p.month !== null).sort((a,b) => b.month - a.month).slice(0, 5);
 
-  function top5rows(arr, key) {
-    return arr.map((p, i) => `<tr>
-      <td class="rank-num ${i<3?'rank-'+(i+1):''}">${i+1}</td>
-      <td class="strat-name-cell">${p.name}</td>
-      <td class="ret-cell ${colCls(p[key])}">${pct(p[key])}</td>
-    </tr>`).join('');
-  }
-
   const noDataMsg = `<tr><td colspan="3" style="color:var(--txt3);padding:14px;text-align:center;font-size:12px">
     Sem dados disponíveis para ${lastDayLabel}
   </td></tr>`;
 
   document.getElementById('top5-day').innerHTML   = top5Day.length   ? top5rows(top5Day,   'day')   : noDataMsg;
   document.getElementById('top5-month').innerHTML = top5Month.length ? top5rows(top5Month, 'month') : noDataMsg;
+
+  // Sobrescreve imediatamente com R$ do /api/hoje
+  loadHoje();
 
   renderPerfChart();
 }
@@ -1120,10 +1115,10 @@ const PORTFOLIO_CONFIGS = [
     icon: '🛡️',
     n: 4,
     criteria: {
-      minWR: 0.60,          // taxa de acerto mínima
-      maxDD: 0.18,          // drawdown máximo (18%)
-      minPF: 1.4,           // profit factor mínimo
-      minRet: 0.05,         // retorno líquido mínimo 6M
+      minWR: 0.50,          // taxa de acerto mínima
+      maxDD: 0.35,          // drawdown máximo (35%)
+      minPF: 1.2,           // profit factor mínimo
+      minRet: 0.03,         // retorno líquido mínimo 6M
       maxCorr: 0.45,        // correlação máxima entre setups
     },
     sort: p => {            // priorizar: menor DD + maior WR + maior PF
@@ -1859,7 +1854,6 @@ function atualizarTop5Hoje(resultados, ultimaData) {
 }
 
 loadData();
-loadHoje();
 setInterval(loadHoje, 60 * 60 * 1000);
 async function renderResults() {
   const loading = document.getElementById('results-loading');
