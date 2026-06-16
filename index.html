@@ -2102,7 +2102,6 @@ async function loadData() {
 
     renderHome();
     renderPortfolios();
-    renderGratisCards();
 
     const now = new Date().toLocaleTimeString('pt-BR');
     document.getElementById('upd-time').textContent = now;
@@ -2140,35 +2139,49 @@ function findGratisProd(nome) {
   return ALL.find(p => p.name.toLowerCase().includes(nome.toLowerCase()));
 }
 
+function parseCurveAll(str) {
+  // Like parseCurve but includes inactive points too
+  if (!str) return [];
+  const p = str.split(','), r = [];
+  for (let i = 0; i < p.length; i += 3) {
+    const v = parseFloat(p[i+2]);
+    if (!isNaN(v) && p[i]) r.push({d:p[i], v});
+  }
+  return r;
+}
+
 function renderGratisCards() {
-  ['lynx','venaciti'].forEach(id => {
-    const prod = findGratisProd(id);
-    if (!prod) return;
-    const r = prod.robot?.report || {};
-    const curve = parseCurve(prod.robot?.dailyCumulativePerformance || '');
-    GRATIS_DATA[id] = { prod, r, curve };
+  try {
+    ['lynx','venaciti'].forEach(id => {
+      const prod = findGratisProd(id);
+      if (!prod) return;
+      const r = prod.robot?.report || {};
+      const curve = parseCurveAll(prod.robot?.dailyCumulativePerformance || '');
+      GRATIS_DATA[id] = { prod, r, curve };
 
-    const ret = parseFloat(r.netReturn || 0);
-    const pf  = parseFloat(r.profitFactor || 0);
-    const wr  = parseFloat(r.percentualNumberOfProfitEliminations || 0);
-    const dd  = parseFloat(r.percentualMaximumDrawdown || 0);
-    const ops = parseInt(r.numberOfEliminations || 0);
+      const ret = parseFloat(r.netReturn || 0);
+      const pf  = parseFloat(r.profitFactor || 0);
+      const wr  = parseFloat(r.percentualNumberOfProfitEliminations || 0);
+      const dd  = parseFloat(r.percentualMaximumDrawdown || 0);
+      const ops = parseInt(r.numberOfEliminations || 0);
 
-    const set = (elId, val, color) => {
-      const el = document.getElementById(elId);
-      if (el) { el.textContent = val; if (color) el.style.color = color; }
-    };
-    set(`${id}-ret`, `${ret>=0?'+':''}${(ret*100).toFixed(1)}%`, ret>=0?'var(--grn)':'var(--red)');
-    set(`${id}-pf`,  pf.toFixed(2));
-    set(`${id}-wr`,  `${(wr*100).toFixed(0)}%`);
-    set(`${id}-dd`,  `${(dd*100).toFixed(1)}%`, dd>0.2?'var(--red)':'var(--grn)');
-    set(`${id}-trades`, ops);
+      const set = (elId, val, color) => {
+        const el = document.getElementById(elId);
+        if (el) { el.textContent = val; if (color) el.style.color = color; }
+      };
+      set(`${id}-ret`, `${ret>=0?'+':''}${(ret*100).toFixed(1)}%`, ret>=0?'var(--grn)':'var(--red)');
+      set(`${id}-pf`,  pf.toFixed(2));
+      set(`${id}-wr`,  `${(wr*100).toFixed(0)}%`);
+      set(`${id}-dd`,  `${(dd*100).toFixed(1)}%`, dd>0.2?'var(--red)':'var(--grn)');
+      set(`${id}-trades`, ops);
 
-    // Sparkline
-    const color = id === 'lynx' ? '#2563eb' : '#7c3aed';
-    const el = document.getElementById(`${id}-spark`);
-    if (el && curve.length > 1) el.innerHTML = gratisSparkline(curve, color);
-  });
+      const color = id === 'lynx' ? '#2563eb' : '#7c3aed';
+      const el = document.getElementById(`${id}-spark`);
+      if (el && curve.length > 1) el.innerHTML = gratisSparkline(curve, color);
+    });
+  } catch(e) {
+    console.error('renderGratisCards error:', e);
+  }
 }
 
 function gratisSparkline(curve, color, W=400, H=70) {
