@@ -424,6 +424,15 @@ svg.mchart{width:100%;height:100%}
           <span class="hero-pill">📈 Day Trade B3</span>
           <span class="hero-pill">☁️ Cloud 24/7</span>
         </div>
+        <div style="margin-top:20px">
+          <button onclick="goPage('gratis', document.querySelector('.nav-btn:last-child'))"
+            style="display:inline-flex;align-items:center;gap:8px;padding:13px 28px;border:none;border-radius:10px;background:linear-gradient(135deg,#059669,#10b981);color:#fff;font-size:15px;font-weight:700;cursor:pointer;box-shadow:0 4px 20px rgba(16,185,129,.4);transition:all .2s"
+            onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 28px rgba(16,185,129,.5)'"
+            onmouseout="this.style.transform='';this.style.boxShadow='0 4px 20px rgba(16,185,129,.4)'">
+            🚀 Comece Grátis Agora
+          </button>
+          <div style="margin-top:8px;font-size:11px;color:rgba(255,255,255,.45)">Sem cartão de crédito · Acesso imediato</div>
+        </div>
       </div>
       <div class="hero-numbers">
         <div class="hn"><div class="hn-val" id="hn-strats">—</div><div class="hn-lbl">Estratégias</div></div>
@@ -1988,20 +1997,29 @@ async function loadData() {
 
 // ══════════════════ COMECE GRÁTIS ══════════════════
 const GRATIS_CFG = {
-  lynx:     { color:'#2563eb', telegram:'https://t.me/cloudtradingbr' },
-  venaciti: { color:'#7c3aed', telegram:'https://t.me/cloudtradingbr' },
+  lynx:     { color:'#2563eb', telegram:'https://t.me/cloudtradingchat',
+    // Dados fixos como fallback enquanto API não retorna
+    fallback: { netReturn:0.4066, profitFactor:1.42, percentualNumberOfProfitEliminations:0.5161,
+                percentualMaximumDrawdown:0.0684, numberOfEliminations:124 } },
+  venaciti: { color:'#7c3aed', telegram:'https://t.me/cloudtradingchat', fallback: null },
 };
 const GRATIS_CACHE = {};
 
 function findGratisProd(nome) {
   const ALIASES = {
-    'lynx':     ['lynx', 'n8'],
-    'venaciti': ['venaciti', 'v5'],
+    'lynx':     ['lynx', 'n8', 'n-8', 'n 8'],
+    'venaciti': ['venaciti', 'v5', 'v-5', 'v 5'],
   };
   const terms = ALIASES[nome.toLowerCase()] || [nome.toLowerCase()];
-  let p = ALL.find(x => terms.some(t => x.name.toLowerCase().includes(t)));
-  if (!p && window._ALL_PRODS)
-    p = window._ALL_PRODS.find(x => terms.some(t => (x.name||'').toLowerCase().includes(t)));
+  // Busca exata primeiro (nome == termo)
+  let p = ALL.find(x => terms.some(t => x.name.toLowerCase() === t));
+  // Depois busca parcial em ALL
+  if (!p) p = ALL.find(x => terms.some(t => x.name.toLowerCase().includes(t)));
+  // Depois busca em todos os produtos
+  if (!p && window._ALL_PRODS) {
+    p = window._ALL_PRODS.find(x => terms.some(t => (x.name||'').toLowerCase() === t));
+    if (!p) p = window._ALL_PRODS.find(x => terms.some(t => (x.name||'').toLowerCase().includes(t)));
+  }
   return p || null;
 }
 
@@ -2035,21 +2053,31 @@ function gSparkline(curve, color, W=400, H=65) {
 function renderGratisCards() {
   try {
     ['lynx','venaciti'].forEach(id => {
+      const cfg  = GRATIS_CFG[id];
       const prod = findGratisProd(id);
-      if (!prod) return;
-      const r = prod.robot?.report||{};
-      const curve = parseCurveAll(prod.robot?.dailyCumulativePerformance||'');
-      GRATIS_CACHE[id] = {prod,r,curve};
+      let r, curve;
+      if (prod) {
+        r     = prod.robot?.report || {};
+        curve = parseCurveAll(prod.robot?.dailyCumulativePerformance||'');
+      } else if (cfg.fallback) {
+        r     = cfg.fallback;
+        curve = [];
+      } else {
+        return;
+      }
+      GRATIS_CACHE[id] = { prod: prod||null, r, curve };
       const s=(elId,val,c)=>{const el=document.getElementById(elId);if(el){el.textContent=val;if(c)el.style.color=c;}};
       const ret=parseFloat(r.netReturn||0),pf=parseFloat(r.profitFactor||0);
       const wr=parseFloat(r.percentualNumberOfProfitEliminations||0);
       const dd=parseFloat(r.percentualMaximumDrawdown||0),ops=parseInt(r.numberOfEliminations||0);
       s(`${id}-ret`,`${ret>=0?'+':''}${(ret*100).toFixed(1)}%`,ret>=0?'var(--grn)':'var(--red)');
-      s(`${id}-pf`,pf.toFixed(2));s(`${id}-wr`,`${(wr*100).toFixed(0)}%`);
+      s(`${id}-pf`,pf.toFixed(2));
+      s(`${id}-wr`,`${(wr*100).toFixed(0)}%`);
       s(`${id}-dd`,`${(dd*100).toFixed(1)}%`,dd>0.2?'var(--red)':'var(--grn)');
       s(`${id}-ops`,ops);
       const el=document.getElementById(`${id}-spark`);
-      if(el&&curve.length>1) el.innerHTML=gSparkline(curve,GRATIS_CFG[id].color);
+      if (el && curve.length>1) el.innerHTML=gSparkline(curve,cfg.color);
+      else if (el && !curve.length) el.innerHTML=`<div style="height:65px;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--txt3)">Curva em atualização</div>`;
     });
   } catch(e){console.error('renderGratisCards:',e);}
 }
