@@ -1541,28 +1541,31 @@ function loadOrBuildPortfolios() {
 
 // Calcular resultado do dia e do mês de um grupo de estratégias
 function calcPortfolioPerformance(selected) {
-  let totalDiaRS   = null;
-  let totalMesPct  = 0;
-  let countMes     = 0;
-  const hojeMap    = window._HOJE_MAP || {};
+  let totalDiaRS  = null;
+  let totalMesRS  = null;
+  const hojeMap   = window._HOJE_MAP || {};
 
   selected.forEach(p => {
-    // Resultado do dia
+    const r      = p.robot?.report || {};
+    const capital = parseFloat(r.initialCapital || 0);
+
+    // Resultado do dia em R$
     const h = hojeMap[p.name?.trim()] || hojeMap[p.name];
     if (h?.resultadoRS !== undefined && h.resultadoRS !== null) {
       totalDiaRS = (totalDiaRS || 0) + h.resultadoRS;
     }
 
-    // Resultado do mês
-    const curve  = parseCurve(p.robot?.dailyCumulativePerformance || '');
-    const mesRet = monthReturn(curve);
-    if (mesRet !== null) { totalMesPct += mesRet; countMes++; }
+    // Resultado do mês em R$ = retorno% × capital inicial
+    if (capital > 0) {
+      const curve  = parseCurve(p.robot?.dailyCumulativePerformance || '');
+      const mesRet = monthReturn(curve);
+      if (mesRet !== null) {
+        totalMesRS = (totalMesRS || 0) + mesRet * capital;
+      }
+    }
   });
 
-  return {
-    diaRS:  totalDiaRS,
-    mesPct: countMes > 0 ? totalMesPct / countMes : null,
-  };
+  return { diaRS: totalDiaRS, mesRS: totalMesRS };
 }
 
 // ─── RENDER PORTFOLIOS ───
@@ -1624,8 +1627,8 @@ function buildPortfolios() {
         ? `<span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:${perf.diaRS>=0?'var(--grn)':'var(--red)'}">${perf.diaRS>=0?'+':''}R$${Math.abs(perf.diaRS).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>`
         : `<span style="font-size:11px;color:var(--txt3)">—</span>`;
 
-      const mesHtml = perf.mesPct !== null
-        ? `<span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:${perf.mesPct>=0?'var(--grn)':'var(--red)'}">${perf.mesPct>=0?'+':''}${(perf.mesPct*100).toFixed(1)}%</span>`
+      const mesHtml = perf.mesRS !== null
+        ? `<span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:${perf.mesRS>=0?'var(--grn)':'var(--red)'}">${perf.mesRS>=0?'+':''}R$${Math.abs(perf.mesRS).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>`
         : `<span style="font-size:11px;color:var(--txt3)">—</span>`;
 
       return `<div class="port-card" onclick="openPortModal('${cfg.id}')">
