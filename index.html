@@ -1401,66 +1401,175 @@ function miniEquitySVG(portValues, color, W=280, H=60) {
 }
 
 // Auto-select best non-correlated setups for each portfolio type
-function autoSelectPortfolio(config, allProds) {
-  const { criteria, sort, n } = config;
+// ═══════════════════════════════════════════════════════
+// SISTEMA DE CARTEIRAS — SELEÇÃO EXCLUSIVA MENSAL
+// ═══════════════════════════════════════════════════════
 
-  // 1. Filter candidates by criteria
-  let candidates = allProds.filter(p => {
-    const r = p.robot?.report || {};
-    return (
-      (r.percentualNumberOfProfitEliminations || 0) >= criteria.minWR &&
-      (r.percentualMaximumDrawdown || 1) <= criteria.maxDD &&
-      (r.profitFactor || 0) >= criteria.minPF &&
-      (r.netReturn || 0) >= criteria.minRet
-    );
-  });
+const PORTFOLIO_STORAGE_KEY = 'cloud_portfolios_v2';
 
-  if (candidates.length < n) return null; // not enough candidates
+// Score de cada estratégia por perfil
+function scoreStrategy(p, perfil) {
+  const r = p.robot?.report || {};
+  const wr  = parseFloat(r.percentualNumberOfProfitEliminations || 0);
+  const dd  = parseFloat(r.percentualMaximumDrawdown || 1);
+  const pf  = parseFloat(r.profitFactor || 0);
+  const ret = parseFloat(r.netReturn || 0);
+  const ops = parseInt(r.numberOfEliminations || 0);
 
-  // 2. Sort by config-specific score
-  candidates = candidates.sort((a, b) => sort(b) - sort(a));
+  if (perfil === 'conservative') {
+    // Prioriza: menor DD + maior WR + consistência
+    return (1 - dd) * 40 + wr * 35 + Math.min(pf / 3, 1) * 15 + Math.min(ret, 1) * 10;
+  }
+  if (perfil === 'moderate') {
+    // Equilíbrio: retorno + WR + DD
+    return ret * 35 + wr * 30 + (1 - dd) * 20 + Math.min(pf / 3, 1) * 15;
+  }
+  if (perfil === 'aggressive') {
+    // Prioriza retorno + operações
+    return ret * 50 + Math.min(pf / 4, 1) * 25 + Math.min(ops / 500, 1) * 15 + wr * 10;
+  }
+  return 0;
+}
 
-  // 3. Greedy selection: pick top scored, then add non-correlated ones
-  const selected = [candidates[0]];
-  const getMonthlySeries = p => {
-    const curve = parseCurve(p.robot?.dailyCumulativePerformance || '');
-    const mo = {};
-    curve.forEach(pt => { if (pt.d) mo[pt.d.substring(0,7)] = pt.v; });
-    const keys = Object.keys(mo).sort();
-    return keys.slice(1).map((k,i) => mo[k] - mo[keys[i]]);
-  };
+// Critérios mínimos por perfil
+function meetsCriteria(p, perfil) {
+  const r = p.robot?.report || {};
+  const wr  = parseFloat(r.percentualNumberOfProfitEliminations || 0);
+  const dd  = parseFloat(r.percentualMaximumDrawdown || 1);
+  const pf  = parseFloat(r.profitFactor || 0);
+  const ret = parseFloat(r.netReturn || 0);
 
-  const series = { [candidates[0].id]: getMonthlySeries(candidates[0]) };
+  if (perfil === 'conservative') return wr >= 0.50 && dd <= 0.40 && pf >= 1.1 && ret >= 0.02;
+  if (perfil === 'moderate')     return wr >= 0.48 && dd <= 0.55 && pf >= 1.05 && ret >= 0.05;
+  if (perfil === 'aggressive')   return dd <= 0.80 && pf >= 1.0  && ret >= 0.08;
+  return true;
+}
 
-  for (let i = 1; i < candidates.length && selected.length < n; i++) {
-    const p = candidates[i];
-    const ps = getMonthlySeries(p);
-    series[p.id] = ps;
+// Seleção exclusiva — distribui as 12 melhores sem repetição
+function selectExclusivePortfolios(allProds) {
+  const ORDER = ['conservative', 'moderate', 'aggressive'];
+  const usedIds = new Set();
+  const result  = {};
 
-    // Check correlation against all already-selected
-    let maxCorr = -Infinity;
-    for (const sel of selected) {
-      const ss = series[sel.id];
-      const commonLen = Math.min(ps.length, ss.length);
-      if (commonLen < 3) continue;
-      const c = corrArr(ps.slice(-commonLen), ss.slice(-commonLen));
-      if (c > maxCorr) maxCorr = c;
+  for (const perfil of ORDER) {
+    // Filtrar candidatos elegíveis e não usados
+    let candidates = allProds
+      .filter(p => !usedIds.has(p.id) && meetsCriteria(p, perfil))
+      .map(p => ({ p, score: scoreStrategy(p, perfil) }))
+      .sort((a, b) => b.score - a.score);
+
+    // Selecionar top 4 com correlação controlada
+    const selected = [];
+    const getMonthlySeries = p => {
+      const curve = parseCurve(p.robot?.dailyCumulativePerformance || '');
+      const mo = {};
+      curve.forEach(pt => { if (pt.d) mo[pt.d.substring(0,7)] = pt.v; });
+      const keys = Object.keys(mo).sort();
+      return keys.slice(1).map((k,i) => mo[k] - mo[keys[i]]);
+    };
+    const series = {};
+
+    for (const { p } of candidates) {
+      if (selected.length >= 4) break;
+      const ps = getMonthlySeries(p);
+      series[p.id] = ps;
+
+      // Verificar correlação com já selecionadas
+      let tooCorrelated = false;
+      for (const sel of selected) {
+        const ss = series[sel.id] || getMonthlySeries(sel);
+        series[sel.id] = ss;
+        const commonLen = Math.min(ps.length, ss.length);
+        if (commonLen >= 3) {
+          const c = corrArr(ps.slice(-commonLen), ss.slice(-commonLen));
+          if (c > 0.70) { tooCorrelated = true; break; }
+        }
+      }
+      if (!tooCorrelated) {
+        selected.push(p);
+        usedIds.add(p.id);
+      }
     }
 
-    if (maxCorr <= criteria.maxCorr) {
-      selected.push(p);
+    // Se não conseguiu 4 com correlação, completa sem restrição
+    if (selected.length < 4) {
+      for (const { p } of candidates) {
+        if (selected.length >= 4) break;
+        if (!usedIds.has(p.id)) { selected.push(p); usedIds.add(p.id); }
+      }
     }
+
+    result[perfil] = selected;
   }
 
-  return selected.length >= Math.ceil(n * 0.6) ? selected : null;
+  return result;
+}
+
+// Carregar ou calcular carteiras (cache mensal no localStorage)
+function loadOrBuildPortfolios() {
+  const now   = new Date();
+  const mesAno = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+
+  try {
+    const cached = localStorage.getItem(PORTFOLIO_STORAGE_KEY);
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (parsed.mesAno === mesAno && parsed.portfolios) {
+        // Reconstruir objetos com dados da API atual
+        const rebuilt = {};
+        for (const [perfil, ids] of Object.entries(parsed.portfolios)) {
+          rebuilt[perfil] = ids.map(id => ALL.find(p => p.id === id)).filter(Boolean);
+          if (rebuilt[perfil].length < 3) { rebuilt = null; break; }
+        }
+        if (rebuilt) return { portfolios: rebuilt, mesAno, fromCache: true };
+      }
+    }
+  } catch(e) {}
+
+  // Calcular novo
+  const portfolios = selectExclusivePortfolios(ALL);
+  const idsToSave  = {};
+  for (const [perfil, prods] of Object.entries(portfolios)) {
+    idsToSave[perfil] = prods.map(p => p.id);
+  }
+  try {
+    localStorage.setItem(PORTFOLIO_STORAGE_KEY, JSON.stringify({ mesAno, portfolios: idsToSave }));
+  } catch(e) {}
+
+  return { portfolios, mesAno, fromCache: false };
+}
+
+// Calcular resultado do dia e do mês de um grupo de estratégias
+function calcPortfolioPerformance(selected) {
+  let totalDiaRS   = null;
+  let totalMesPct  = 0;
+  let countMes     = 0;
+  const hojeMap    = window._HOJE_MAP || {};
+
+  selected.forEach(p => {
+    // Resultado do dia
+    const h = hojeMap[p.name?.trim()] || hojeMap[p.name];
+    if (h?.resultadoRS !== undefined && h.resultadoRS !== null) {
+      totalDiaRS = (totalDiaRS || 0) + h.resultadoRS;
+    }
+
+    // Resultado do mês
+    const curve  = parseCurve(p.robot?.dailyCumulativePerformance || '');
+    const mesRet = monthReturn(curve);
+    if (mesRet !== null) { totalMesPct += mesRet; countMes++; }
+  });
+
+  return {
+    diaRS:  totalDiaRS,
+    mesPct: countMes > 0 ? totalMesPct / countMes : null,
+  };
 }
 
 // ─── RENDER PORTFOLIOS ───
 function renderPortfolios() {
-  const grid = document.getElementById('port-grid');
+  const grid   = document.getElementById('port-grid');
   const status = document.getElementById('port-status');
 
-  // Show building state
   grid.innerHTML = PORTFOLIO_CONFIGS.map(cfg => `
     <div class="port-card" style="cursor:default">
       <div class="port-header ${cfg.cls}">
@@ -1470,100 +1579,128 @@ function renderPortfolios() {
       <div class="port-body">
         <div class="port-building">
           <div class="spinner-sm"></div>
-          Selecionando estratégias automaticamente...
+          Montando carteira...
         </div>
       </div>
     </div>`).join('');
 
-  // Async build
   setTimeout(() => buildPortfolios(), 50);
 }
 
 function buildPortfolios() {
-  const grid = document.getElementById('port-grid');
+  const grid   = document.getElementById('port-grid');
   const status = document.getElementById('port-status');
 
-  // Store built portfolios globally for modal access
+  const { portfolios, mesAno, fromCache } = loadOrBuildPortfolios();
   window.BUILT_PORTS = {};
 
-  const cards = PORTFOLIO_CONFIGS.map(cfg => {
-    const selected = autoSelectPortfolio(cfg, ALL);
+  // Carregar dados do dia se disponível
+  loadHojeMap().then(() => {
+    const cards = PORTFOLIO_CONFIGS.map(cfg => {
+      const selected = portfolios[cfg.id];
 
-    if (!selected) {
-      return `<div class="port-card" style="cursor:default">
+      if (!selected || selected.length < 2) {
+        return `<div class="port-card" style="cursor:default">
+          <div class="port-header ${cfg.cls}">
+            <div class="port-name">${cfg.icon} ${cfg.name}</div>
+          </div>
+          <div class="port-body"><div class="port-building" style="color:var(--red)">
+            ⚠️ Dados insuficientes para montar esta carteira.
+          </div></div>
+        </div>`;
+      }
+
+      const kpis = computePortKpis(selected);
+      const perf = calcPortfolioPerformance(selected);
+      window.BUILT_PORTS[cfg.id] = { cfg, selected, kpis };
+
+      if (!kpis) return `<div class="port-card" style="cursor:default">
+        <div class="port-header ${cfg.cls}"><div class="port-name">${cfg.icon} ${cfg.name}</div></div>
+        <div class="port-body"><div class="port-building">Sem dados suficientes.</div></div>
+      </div>`;
+
+      // Performance do dia/mês
+      const diaHtml = perf.diaRS !== null
+        ? `<span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:${perf.diaRS>=0?'var(--grn)':'var(--red)'}">${perf.diaRS>=0?'+':''}R$${Math.abs(perf.diaRS).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>`
+        : `<span style="font-size:11px;color:var(--txt3)">—</span>`;
+
+      const mesHtml = perf.mesPct !== null
+        ? `<span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:${perf.mesPct>=0?'var(--grn)':'var(--red)'}">${perf.mesPct>=0?'+':''}${(perf.mesPct*100).toFixed(1)}%</span>`
+        : `<span style="font-size:11px;color:var(--txt3)">—</span>`;
+
+      return `<div class="port-card" onclick="openPortModal('${cfg.id}')">
         <div class="port-header ${cfg.cls}">
           <div class="port-name">${cfg.icon} ${cfg.name}</div>
           <div class="port-sub">${cfg.sub}</div>
+          <div class="port-header-kpis">
+            <div class="phk">
+              <div class="phk-val">${(kpis.totalRet*100).toFixed(1)}%</div>
+              <div class="phk-lbl">Retorno 6M</div>
+            </div>
+            <div class="phk">
+              <div class="phk-val">${kpis.sharpe.toFixed(2)}</div>
+              <div class="phk-lbl">Sharpe</div>
+            </div>
+            <div class="phk">
+              <div class="phk-val">${kpis.posMonths}/${kpis.nMonths}</div>
+              <div class="phk-lbl">Meses+</div>
+            </div>
+          </div>
         </div>
         <div class="port-body">
-          <div class="port-building" style="color:var(--red)">
-            ⚠️ Poucos dados disponíveis para montar esta carteira.
+          <!-- Desempenho dia/mês -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
+            <div style="background:var(--bg);border-radius:8px;padding:10px 12px">
+              <div style="font-size:9px;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">Resultado Dia</div>
+              ${diaHtml}
+            </div>
+            <div style="background:var(--bg);border-radius:8px;padding:10px 12px">
+              <div style="font-size:9px;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">Resultado Mês</div>
+              ${mesHtml}
+            </div>
+          </div>
+          <div class="port-strats-label">4 estratégias · Composição ${mesAno}</div>
+          <div class="port-strats">
+            ${selected.map((p, i) => `
+              <span class="port-strat-tag">
+                <span class="port-strat-dot" style="background:${COLORS[i]}"></span>
+                ${p.name}
+              </span>`).join('')}
+          </div>
+          <div class="port-sparkline">${miniEquitySVG(kpis.portValues, cfg.color)}</div>
+          <div class="port-footer">
+            <div class="port-cap">Capital recomendado: <strong>${cfg.cap}</strong></div>
+            <button class="port-detail-btn">Ver detalhes →</button>
           </div>
         </div>
       </div>`;
-    }
+    });
 
-    const kpis = computePortKpis(selected);
-    window.BUILT_PORTS[cfg.id] = { cfg, selected, kpis };
+    grid.innerHTML = cards.join('');
 
-    if (!kpis) {
-      return `<div class="port-card" style="cursor:default">
-        <div class="port-header ${cfg.cls}">
-          <div class="port-name">${cfg.icon} ${cfg.name}</div>
-        </div>
-        <div class="port-body"><div class="port-building">Sem dados de curva suficientes.</div></div>
-      </div>`;
-    }
-
-    const retCls  = kpis.totalRet >= 0 ? 'var(--grn)' : 'var(--red)';
-    const shCls   = kpis.sharpe >= 2 ? 'var(--grn)' : kpis.sharpe >= 1 ? 'var(--amb)' : 'var(--red)';
-    const posPct  = kpis.nMonths > 0 ? kpis.posMonths / kpis.nMonths : 0;
-    const posCls  = posPct >= 0.75 ? 'var(--grn)' : posPct >= 0.60 ? 'var(--amb)' : 'var(--red)';
-
-    const SETUP_COLORS = COLORS.slice(0, selected.length);
-
-    return `<div class="port-card" onclick="openPortModal('${cfg.id}')">
-      <div class="port-header ${cfg.cls}">
-        <div class="port-name">${cfg.icon} ${cfg.name}</div>
-        <div class="port-sub">${cfg.sub}</div>
-        <div class="port-header-kpis">
-          <div class="phk">
-            <div class="phk-val">${(kpis.totalRet*100).toFixed(1)}%</div>
-            <div class="phk-lbl">Retorno 6M</div>
-          </div>
-          <div class="phk">
-            <div class="phk-val">${kpis.sharpe.toFixed(2)}</div>
-            <div class="phk-lbl">Sharpe</div>
-          </div>
-          <div class="phk">
-            <div class="phk-val">${kpis.posMonths}/${kpis.nMonths}</div>
-            <div class="phk-lbl">Meses+</div>
-          </div>
-        </div>
-      </div>
-      <div class="port-body">
-        <div class="port-strats-label">${selected.length} estratégias selecionadas automaticamente</div>
-        <div class="port-strats">
-          ${selected.map((p, i) => `
-            <span class="port-strat-tag">
-              <span class="port-strat-dot" style="background:${SETUP_COLORS[i]}"></span>
-              ${p.name}
-            </span>`).join('')}
-        </div>
-        <div class="port-sparkline">${miniEquitySVG(kpis.portValues, cfg.color)}</div>
-        <div class="port-footer">
-          <div class="port-cap">Capital recomendado: <strong>${cfg.cap}</strong></div>
-          <button class="port-detail-btn">Ver detalhes →</button>
-        </div>
-      </div>
-    </div>`;
+    const [y, m] = mesAno.split('-');
+    const meses  = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    status.textContent = `Composição de ${meses[parseInt(m)-1]}/${y} · ${fromCache ? 'Carregada do cache' : 'Calculada agora'} · Exclusiva entre carteiras`;
   });
-
-  grid.innerHTML = cards.join('');
-
-  const total = Object.keys(window.BUILT_PORTS).length;
-  status.textContent = `${total} carteiras montadas com dados reais · ${ALL.length} estratégias analisadas`;
 }
+
+// Carregar mapa de resultados do dia
+async function loadHojeMap() {
+  if (window._HOJE_MAP) return;
+  try {
+    const res = await fetch('/api/hoje');
+    if (!res.ok) return;
+    const data = await res.json();
+    window._HOJE_MAP = {};
+    (data.resultados || []).forEach(r => {
+      window._HOJE_MAP[r.nome?.trim()] = r;
+      window._HOJE_MAP[r.nome] = r;
+    });
+  } catch(e) {
+    window._HOJE_MAP = {};
+  }
+}
+
 
 // ─── PORTFOLIO MODAL ───
 let PM_PERIOD = '6M';
