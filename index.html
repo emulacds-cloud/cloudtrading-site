@@ -2128,26 +2128,27 @@ async function loadPortfolioData() {
 
 // Retorna curva fresca do investment_portfolios se disponível, senão usa a da API pública
 function getFreshCurve(prod) {
+  if (!prod) return [];
+  // Buscar por nome
   const key = (prod.name||'').toLowerCase().trim();
-  const port = window._PORT_MAP[key];
+  let port = window._PORT_MAP[key];
+  // Se não achou por nome, buscar por portfolioCode
+  if (!port && prod.portfolioCode) {
+    port = Object.values(window._PORT_MAP).find(p => p.portfolioCode == prod.portfolioCode);
+  }
   if (port?.portfolio?.investments?.[0]?.curve?.length > 10) {
-    // Converter formato [{d,active,v}] para o formato parseCurve [{d,v}]
     return port.portfolio.investments[0].curve
       .filter(pt => pt.active)
       .map(pt => ({d: pt.d, v: pt.v}));
   }
-  return parseCurve(prod.robot?.dailyCumulativePerformance || '');
+  return parseCurveAll(prod.robot?.dailyCumulativePerformance || '');
 }
 
 // Resultado do mês em R$ usando curva fresca
-function getMonthRS(prod) {
-  const key = (prod.name||'').toLowerCase().trim();
-  const port = window._PORT_MAP[key];
-  const capital = parseFloat(prod.robot?.report?.initialCapital || 0);
+function getMonthRS(prod, curveOverride) {
+  const capital = parseFloat(prod?.robot?.report?.initialCapital || 0);
   if (!capital) return null;
-
-  // Usar curva fresca se disponível
-  const curve = getFreshCurve(prod);
+  const curve = curveOverride || getFreshCurve(prod);
   const mesRet = monthReturn(curve);
   if (mesRet === null) return null;
   return mesRet * capital;
@@ -2207,7 +2208,7 @@ const GRATIS_CFG = {
   lynx:     { color:'#2563eb', telegram:'https://t.me/cloudtradingchat',
     // Dados fixos como fallback enquanto API não retorna
     fallback: { netReturn:0.4066, profitFactor:1.42, percentualNumberOfProfitEliminations:0.5161,
-                percentualMaximumDrawdown:0.0684, numberOfEliminations:124 } },
+                percentualMaximumDrawdown:0.0684, numberOfEliminations:124, initialCapital:4000 } },
   venaciti: { color:'#7c3aed', telegram:'https://t.me/cloudtradingchat', fallback: null },
 };
 const GRATIS_CACHE = {};
@@ -2298,13 +2299,19 @@ function renderGratisCards() {
         }
       }
 
-      // Mês em R$ via curva fresca
+      // Mês em R$ — usa curva fresca e capital do prod ou fallback
       const mesEl = document.getElementById(`${id}-mes-rs`);
-      if (mesEl && prod) {
-        const mesRS = getMonthRS(prod);
-        if (mesRS !== null) {
-          mesEl.textContent = `${mesRS>=0?'+':''}R$${Math.abs(mesRS).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
-          mesEl.style.color = mesRS >= 0 ? 'var(--grn)' : 'var(--red)';
+      if (mesEl) {
+        const freshCurve = prod ? getFreshCurve(prod) : curve;
+        const cap = parseFloat(prod?.robot?.report?.initialCapital || cfg.fallback?.initialCapital || 0);
+        const useCurve = freshCurve.length > 1 ? freshCurve : curve;
+        if (cap > 0 && useCurve.length > 1) {
+          const mesRet = monthReturn(useCurve);
+          if (mesRet !== null) {
+            const mesRS = mesRet * cap;
+            mesEl.textContent = `${mesRS>=0?'+':''}R$${Math.abs(mesRS).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+            mesEl.style.color = mesRS >= 0 ? 'var(--grn)' : 'var(--red)';
+          }
         }
       }
 
@@ -2312,7 +2319,8 @@ function renderGratisCards() {
       const freshCurve = prod ? getFreshCurve(prod) : curve;
       const el = document.getElementById(`${id}-spark`);
       if (el && freshCurve.length>1) el.innerHTML=gSparkline(freshCurve, cfg.color);
-      else if (el && !freshCurve.length) el.innerHTML=`<div style="height:65px;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--txt3)">Curva em atualização</div>`;
+      else if (el && curve.length>1) el.innerHTML=gSparkline(curve, cfg.color);
+      else if (el) el.innerHTML=`<div style="height:65px;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--txt3)">Curva em atualização</div>`;
     });
   } catch(e){console.error('renderGratisCards:',e);}
 }
