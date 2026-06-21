@@ -1565,22 +1565,14 @@ function loadOrBuildPortfolios() {
 function calcPortfolioPerformance(selected) {
   let totalDiaRS = null;
   let totalMesRS = null;
-  let countMes   = 0;
   const hojeMap  = window._HOJE_MAP || {};
 
   selected.forEach(p => {
-    // Resultado do dia em R$ via /api/hoje
-    const h = hojeMap[p.name?.trim()] || hojeMap[p.name];
-    if (h?.resultadoRS !== undefined && h.resultadoRS !== null) {
-      totalDiaRS = (totalDiaRS || 0) + h.resultadoRS;
-    }
+    const diaRS = getDiaRS(p, hojeMap);
+    if (diaRS !== null) totalDiaRS = (totalDiaRS || 0) + diaRS;
 
-    // Resultado do mês em R$ via curva fresca do investment_portfolios
     const mesRS = getMonthRS(p);
-    if (mesRS !== null) {
-      totalMesRS = (totalMesRS || 0) + mesRS;
-      countMes++;
-    }
+    if (mesRS !== null) totalMesRS = (totalMesRS || 0) + mesRS;
   });
 
   return { diaRS: totalDiaRS, mesRS: totalMesRS };
@@ -2115,10 +2107,11 @@ async function loadPortfolioData() {
     const res = await fetch('/api/portfolio', {headers:{'Accept':'application/json'}});
     if (!res.ok) return;
     const data = await res.json();
-    // Indexar por nome do produto para cruzar com ALL
+    // Indexar por nome — o servidor já calculou diaRS e mesRS
     (data.products || []).forEach(p => {
-      if (p.name && p.portfolio) {
-        window._PORT_MAP[p.name.toLowerCase().trim()] = p;
+      if (p.name) {
+        const key = p.name.toLowerCase().trim();
+        window._PORT_MAP[key] = p;
       }
     });
   } catch(e) {
@@ -2126,32 +2119,43 @@ async function loadPortfolioData() {
   }
 }
 
-// Retorna curva fresca do investment_portfolios se disponível, senão usa a da API pública
+// Retorna curva fresca do servidor se disponível
 function getFreshCurve(prod) {
   if (!prod) return [];
-  // Buscar por nome
   const key = (prod.name||'').toLowerCase().trim();
-  let port = window._PORT_MAP[key];
-  // Se não achou por nome, buscar por portfolioCode
-  if (!port && prod.portfolioCode) {
-    port = Object.values(window._PORT_MAP).find(p => p.portfolioCode == prod.portfolioCode);
-  }
-  if (port?.portfolio?.investments?.[0]?.curve?.length > 10) {
-    return port.portfolio.investments[0].curve
-      .filter(pt => pt.active)
-      .map(pt => ({d: pt.d, v: pt.v}));
+  const port = window._PORT_MAP[key];
+  if (port?.curve?.length > 10) {
+    return port.curve.filter(pt => pt.active);
   }
   return parseCurveAll(prod.robot?.dailyCumulativePerformance || '');
 }
 
-// Resultado do mês em R$ usando curva fresca
-function getMonthRS(prod, curveOverride) {
-  const capital = parseFloat(prod?.robot?.report?.initialCapital || 0);
+// Resultado do mês em R$ — usa valor já calculado no servidor
+function getMonthRS(prod) {
+  if (!prod) return null;
+  const key = (prod.name||'').toLowerCase().trim();
+  const port = window._PORT_MAP[key];
+  if (port?.mesRS !== undefined && port.mesRS !== null) return port.mesRS;
+  // Fallback: calcular localmente com curva da API pública
+  const capital = parseFloat(prod.robot?.report?.initialCapital || 0);
   if (!capital) return null;
-  const curve = curveOverride || getFreshCurve(prod);
+  const curve = parseCurveAll(prod.robot?.dailyCumulativePerformance || '');
   const mesRet = monthReturn(curve);
   if (mesRet === null) return null;
   return mesRet * capital;
+}
+
+// Resultado do dia em R$ — usa valor já calculado no servidor
+function getDiaRS(prod, hojeMap) {
+  if (!prod) return null;
+  // Primeiro: /api/hoje (mais preciso)
+  const h = (hojeMap||{})[prod.name?.trim()] || (hojeMap||{})[prod.name];
+  if (h?.resultadoRS !== undefined && h.resultadoRS !== null) return h.resultadoRS;
+  // Segundo: /api/portfolio (diferença da curva)
+  const key = (prod.name||'').toLowerCase().trim();
+  const port = window._PORT_MAP[key];
+  if (port?.diaRS !== undefined && port.diaRS !== null) return port.diaRS;
+  return null;
 }
 
 async function loadData() {
@@ -2284,34 +2288,29 @@ function renderGratisCards() {
       s(`${id}-dd`,`${(dd*100).toFixed(1)}%`,dd>0.2?'var(--red)':'var(--grn)');
       s(`${id}-ops`,ops);
 
-      // Resultado dia e mês em R$
-      const hojeMap = window._HOJE_MAP || {};
-      const h = hojeMap[prod?.name?.trim()] || hojeMap[prod?.name];
-      const capital = parseFloat(prod?.robot?.report?.initialCapital || 0);
-
-      // Dia
+      // Dia em R$
       const diaEl = document.getElementById(`${id}-dia-rs`);
       if (diaEl) {
-        if (h?.resultadoRS !== undefined && h.resultadoRS !== null) {
-          const v = h.resultadoRS;
-          diaEl.textContent = `${v>=0?'+':''}R$${Math.abs(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
-          diaEl.style.color = v >= 0 ? 'var(--grn)' : 'var(--red)';
+        const diaRS = getDiaRS(prod, window._HOJE_MAP || {});
+        if (diaRS !== null) {
+          diaEl.textContent = `${diaRS>=0?'+':''}R$${Math.abs(diaRS).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+          diaEl.style.color = diaRS >= 0 ? 'var(--grn)' : 'var(--red)';
         }
       }
 
-      // Mês em R$ — usa curva fresca e capital do prod ou fallback
+      // Mês em R$
       const mesEl = document.getElementById(`${id}-mes-rs`);
       if (mesEl) {
-        const freshCurve = prod ? getFreshCurve(prod) : curve;
-        const cap = parseFloat(prod?.robot?.report?.initialCapital || cfg.fallback?.initialCapital || 0);
-        const useCurve = freshCurve.length > 1 ? freshCurve : curve;
-        if (cap > 0 && useCurve.length > 1) {
-          const mesRet = monthReturn(useCurve);
-          if (mesRet !== null) {
-            const mesRS = mesRet * cap;
-            mesEl.textContent = `${mesRS>=0?'+':''}R$${Math.abs(mesRS).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
-            mesEl.style.color = mesRS >= 0 ? 'var(--grn)' : 'var(--red)';
-          }
+        // Para Lynx sem dados na API, usar fallback com curva da API pública × capital
+        let mesRS = prod ? getMonthRS(prod) : null;
+        if (mesRS === null && cfg.fallback) {
+          const cap = cfg.fallback.initialCapital || 4000;
+          const mesRet = monthReturn(curve);
+          if (mesRet !== null) mesRS = mesRet * cap;
+        }
+        if (mesRS !== null) {
+          mesEl.textContent = `${mesRS>=0?'+':''}R$${Math.abs(mesRS).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+          mesEl.style.color = mesRS >= 0 ? 'var(--grn)' : 'var(--red)';
         }
       }
 
