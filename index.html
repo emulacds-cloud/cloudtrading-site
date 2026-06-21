@@ -634,7 +634,7 @@ svg.mchart{width:100%;height:100%}
       <div style="display:flex;gap:20px;flex-wrap:wrap">
         <div style="display:flex;align-items:center;gap:8px;font-size:12px;opacity:.85"><span style="width:22px;height:22px;border-radius:50%;background:rgba(16,185,129,.3);border:1px solid rgba(16,185,129,.5);color:#4ade80;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">1</span>Clique em "Quero Acesso Gratuito"</div>
         <div style="display:flex;align-items:center;gap:8px;font-size:12px;opacity:.85"><span style="width:22px;height:22px;border-radius:50%;background:rgba(16,185,129,.3);border:1px solid rgba(16,185,129,.5);color:#4ade80;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">2</span>Entre no grupo do Telegram</div>
-        <div style="display:flex;align-items:center;gap:8px;font-size:12px;opacity:.85"><span style="width:22px;height:22px;border-radius:50%;background:rgba(16,185,129,.3);border:1px solid rgba(16,185,129,.5);color:#4ade80;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">3</span>Siga os passos indicados para aderir</div>
+        <div style="display:flex;align-items:center;gap:8px;font-size:12px;opacity:.85"><span style="width:22px;height:22px;border-radius:50%;background:rgba(16,185,129,.3);border:1px solid rgba(16,185,129,.5);color:#4ade80;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">3</span>Receba seu cupom por e-mail</div>
         <div style="display:flex;align-items:center;gap:8px;font-size:12px;opacity:.85"><span style="width:22px;height:22px;border-radius:50%;background:rgba(16,185,129,.3);border:1px solid rgba(16,185,129,.5);color:#4ade80;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">4</span>Ative na Smarttbot</div>
       </div>
     </div>
@@ -1088,11 +1088,10 @@ function renderHome() {
   const top5Month = [...withDay].filter(p => p.month !== null).sort((a,b) => b.month - a.month).slice(0, 5);
 
   function top5rows(arr, key) {
+    const hojeMap = window._HOJE_MAP || {};
     return arr.map((p, i) => {
       let valHtml;
       if (key === 'day') {
-        // Dia em R$ se disponível, senão %
-        const hojeMap = window._HOJE_MAP || {};
         const h = hojeMap[p.name?.trim()] || hojeMap[p.name];
         if (h?.resultadoRS !== undefined && h.resultadoRS !== null) {
           const v = h.resultadoRS;
@@ -1119,11 +1118,11 @@ function renderHome() {
   document.getElementById('top5-day').innerHTML   = top5Day.length   ? top5rows(top5Day,   'day')   : noDataMsg;
   document.getElementById('top5-month').innerHTML = top5Month.length ? top5rows(top5Month, 'month') : noDataMsg;
 
-  // Recarrega Top 5 dia em R$ após /api/hoje carregar
+  // Re-renderiza Top 5 dia em R$ após /api/hoje carregar (se ainda não carregou)
   if (!window._HOJE_MAP) {
     loadHojeMap().then(() => {
-      document.getElementById('top5-day').innerHTML =
-        top5Day.length ? top5rows(top5Day, 'day') : noDataMsg;
+      if (top5Day.length)
+        document.getElementById('top5-day').innerHTML = top5rows(top5Day, 'day');
     });
   }
 
@@ -1594,12 +1593,13 @@ function calcPortfolioPerformance(selected) {
   const hojeMap   = window._HOJE_MAP || {};
 
   selected.forEach(p => {
-    // Dia em R$
-    const diaRS = getDiaRS(p, hojeMap);
-    if (diaRS !== null) totalDiaRS = (totalDiaRS || 0) + diaRS;
-
-    // Mês em % (média das estratégias da carteira)
-    const curve  = getFreshCurve(p);
+    // Dia em R$ via /api/hoje
+    const h = hojeMap[p.name?.trim()] || hojeMap[p.name];
+    if (h?.resultadoRS !== undefined && h.resultadoRS !== null) {
+      totalDiaRS = (totalDiaRS || 0) + h.resultadoRS;
+    }
+    // Mês em % (média das estratégias)
+    const curve  = parseCurve(p.robot?.dailyCumulativePerformance || '');
     const mesRet = monthReturn(curve);
     if (mesRet !== null) { totalMesPct += mesRet; countMes++; }
   });
@@ -1730,6 +1730,34 @@ function buildPortfolios() {
 }
 
 // Carregar mapa de resultados do dia
+// Acúmulo diário silencioso — salva resultado do dia no localStorage
+// Só exibirá em R$ a partir de julho/2026 quando tiver histórico completo
+const ACUM_KEY = 'cloud_acum_v1';
+function acumSaveDay(hojeMap) {
+  try {
+    const now    = new Date();
+    const hoje   = now.toISOString().slice(0,10);
+    const mesAno = hoje.slice(0,7);
+    let store = JSON.parse(localStorage.getItem(ACUM_KEY) || '{}');
+    // Reseta no início de novo mês
+    if (store.mesAno && store.mesAno !== mesAno) {
+      store = { mesAno, dias: {} };
+    }
+    if (!store.mesAno) store.mesAno = mesAno;
+    if (!store.dias)   store.dias   = {};
+    if (store.dias[hoje]) return; // já salvou hoje
+    const dayData = {};
+    Object.entries(hojeMap).forEach(([nome, r]) => {
+      if (r?.resultadoRS !== undefined && r.resultadoRS !== null)
+        dayData[nome.trim()] = r.resultadoRS;
+    });
+    if (Object.keys(dayData).length > 0) {
+      store.dias[hoje] = dayData;
+      localStorage.setItem(ACUM_KEY, JSON.stringify(store));
+    }
+  } catch(e) {}
+}
+
 async function loadHojeMap() {
   if (window._HOJE_MAP) return;
   try {
@@ -1741,7 +1769,7 @@ async function loadHojeMap() {
       window._HOJE_MAP[r.nome?.trim()] = r;
       window._HOJE_MAP[r.nome] = r;
     });
-    // Salvar resultado do dia no acúmulo mensal
+    // Salva silenciosamente para acúmulo mensal (exibe em R$ a partir de julho)
     acumSaveDay(window._HOJE_MAP);
   } catch(e) {
     window._HOJE_MAP = {};
@@ -2061,8 +2089,7 @@ async function renderResults() {
       return {
         nome:   p.name,
         diaRS,  diaPct,
-        mesDisp: getMesDisplay(p.name, curve),
-        anoRet,
+        mesRet, anoRet,
         ret6m:  parseFloat(r.netReturn || 0),
         dd:     parseFloat(r.percentualMaximumDrawdown || 0),
         wr:     parseFloat(r.percentualNumberOfProfitEliminations || 0),
@@ -2089,7 +2116,7 @@ async function renderResults() {
     tbody.innerHTML = rows.map(r => `<tr>
       <td>${r.nome}</td>
       <td>${fmtDia(r.diaRS, r.diaPct)}</td>
-      <td>${fmtMesDisplay(r.mesDisp)}</td>
+      <td>${fmtPct(r.mesRet)}</td>
       <td>${fmtPct(r.anoRet)}</td>
       <td>${fmtPct(r.ret6m)}</td>
       <td class="${r.dd>0.3?'neg':r.dd>0.15?'zero':'pos'}">${(r.dd*100).toFixed(1)}%</td>
@@ -2133,193 +2160,14 @@ setInterval(() => {
   if (el) el.textContent = new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'})+' BRT';
 }, 1000);
 
-// ══════════════════════════════════════════════════
-// SISTEMA DE ACÚMULO DIÁRIO → RESULTADO MÊS EM R$
-// Salva resultado do dia de cada estratégia no localStorage
-// Soma o mês corrente → resultado mensal exato em R$
-// Reseta automaticamente no dia 1º de cada mês
-// ══════════════════════════════════════════════════
-const ACUM_KEY = 'cloud_acum_v1';
-
-function acumGetStore() {
-  try { return JSON.parse(localStorage.getItem(ACUM_KEY) || '{}'); } catch(e) { return {}; }
-}
-function acumSaveStore(store) {
-  try { localStorage.setItem(ACUM_KEY, JSON.stringify(store)); } catch(e) {}
-}
-
-// Salva resultado do dia para cada estratégia (chamado após /api/hoje carregar)
-function acumSaveDay(hojeMap) {
-  if (!hojeMap || !Object.keys(hojeMap).length) return;
-  const now    = new Date();
-  const hoje   = now.toISOString().slice(0,10);
-  const mesAno = hoje.slice(0,7);
-  const store  = acumGetStore();
-
-  // Resetar se mudou o mês
-  if (store.mesAno && store.mesAno !== mesAno) {
-    // Arquivar mês anterior
-    store.historico = store.historico || {};
-    store.historico[store.mesAno] = store.dias;
-    store.dias  = {};
-    store.mesAno = mesAno;
-  }
-  if (!store.mesAno) store.mesAno = mesAno;
-  if (!store.dias)   store.dias   = {};
-
-  // Só salva se ainda não salvou hoje
-  if (store.dias[hoje]) return;
-
-  const dayData = {};
-  Object.entries(hojeMap).forEach(([nome, r]) => {
-    if (r.resultadoRS !== undefined && r.resultadoRS !== null) {
-      dayData[nome] = r.resultadoRS;
-    }
-  });
-
-  if (Object.keys(dayData).length > 0) {
-    store.dias[hoje] = dayData;
-    acumSaveStore(store);
-    console.log(`[Acúmulo] Salvou ${Object.keys(dayData).length} estratégias para ${hoje}`);
-  }
-}
-
-// Retorna resultado acumulado do mês corrente em R$ por estratégia
-function acumGetMesRS() {
-  const store  = acumGetStore();
-  const now    = new Date();
-  const mesAno = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
-  if (!store.dias || store.mesAno !== mesAno) return {};
-
-  const totais = {};
-  Object.values(store.dias).forEach(dayData => {
-    Object.entries(dayData).forEach(([nome, rs]) => {
-      totais[nome] = (totais[nome] || 0) + rs;
-    });
-  });
-  return totais;
-}
-
-// Retorna resultado do mês para exibição
-// Por enquanto sempre em % (acúmulo real ativa em julho)
-function getMesDisplay(nomeProd, curve) {
-  const mesRet = monthReturn(curve);
-  if (mesRet !== null) return { tipo:'pct', valor:mesRet };
-  return null;
-}
-
-// A partir de julho: verifica se há acúmulo real para o mês corrente
-// Só usa acúmulo se houver dados de MAIS de um dia (evita mostrar só o dia de hoje)
-function getMesDisplayComAcum(nomeProd, curve) {
-  const store  = acumGetStore();
-  const now    = new Date();
-  const mesAno = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
-  const diasSalvos = Object.keys(store.dias || {}).length;
-
-  // Só usa acúmulo a partir de julho E se tiver mais de 1 dia salvo
-  if (mesAno >= '2026-07' && diasSalvos > 1 && store.mesAno === mesAno) {
-    const mesMap = acumGetMesRS();
-    const nome   = nomeProd?.trim();
-    const key    = Object.keys(mesMap).find(k =>
-      k.trim().toLowerCase() === nome?.toLowerCase()
-    );
-    if (key !== undefined) return { tipo:'rs', valor:mesMap[key] };
-  }
-  // Fallback: % da curva
-  const mesRet = monthReturn(curve);
-  if (mesRet !== null) return { tipo:'pct', valor:mesRet };
-  return null;
-}
-
-function fmtMesDisplay(display) {
-  if (!display) return '<span class="zero">—</span>';
-  if (display.tipo === 'rs') {
-    const v   = display.valor;
-    const cls = v > 0 ? 'pos' : v < 0 ? 'neg' : 'zero';
-    return `<span class="${cls}">${v>=0?'+':''}R$${Math.abs(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>`;
-  }
-  // pct
-  const v   = display.valor;
-  const cls = v > 0 ? 'pos' : v < 0 ? 'neg' : 'zero';
-  return `<span class="${cls}">${v>0?'+':''}${(v*100).toFixed(1)}%</span>`;
-}
-
-// Diagnóstico do acúmulo (para debug)
-function acumStatus() {
-  const store = acumGetStore();
-  const dias  = Object.keys(store.dias || {}).length;
-  const total = Object.keys(acumGetMesRS()).length;
-  console.log(`[Acúmulo] Mês: ${store.mesAno} | Dias salvos: ${dias} | Estratégias: ${total}`);
-  return store;
-}
-
-async function loadPortfolioData() {
-  try {
-    const res = await fetch('/api/portfolio', {headers:{'Accept':'application/json'}});
-    if (!res.ok) return;
-    const data = await res.json();
-    // Indexar por nome — o servidor já calculou diaRS e mesRS
-    (data.products || []).forEach(p => {
-      if (p.name) {
-        const key = p.name.toLowerCase().trim();
-        window._PORT_MAP[key] = p;
-      }
-    });
-  } catch(e) {
-    console.warn('Portfolio API:', e.message);
-  }
-}
-
-// Retorna curva fresca do servidor se disponível
-function getFreshCurve(prod) {
-  if (!prod) return [];
-  const key = (prod.name||'').toLowerCase().trim();
-  const port = window._PORT_MAP[key];
-  if (port?.curve?.length > 10) {
-    return port.curve.filter(pt => pt.active);
-  }
-  return parseCurveAll(prod.robot?.dailyCumulativePerformance || '');
-}
-
-// Resultado do mês em R$ — usa valor já calculado no servidor
-function getMonthRS(prod) {
-  if (!prod) return null;
-  const key = (prod.name||'').toLowerCase().trim();
-  const port = window._PORT_MAP[key];
-  if (port?.mesRS !== undefined && port.mesRS !== null) return port.mesRS;
-  // Fallback: calcular localmente com curva da API pública
-  const capital = parseFloat(prod.robot?.report?.initialCapital || 0);
-  if (!capital) return null;
-  const curve = parseCurveAll(prod.robot?.dailyCumulativePerformance || '');
-  const mesRet = monthReturn(curve);
-  if (mesRet === null) return null;
-  return mesRet * capital;
-}
-
-// Resultado do dia em R$ — usa valor já calculado no servidor
-function getDiaRS(prod, hojeMap) {
-  if (!prod) return null;
-  // Primeiro: /api/hoje (mais preciso)
-  const h = (hojeMap||{})[prod.name?.trim()] || (hojeMap||{})[prod.name];
-  if (h?.resultadoRS !== undefined && h.resultadoRS !== null) return h.resultadoRS;
-  // Segundo: /api/portfolio (diferença da curva)
-  const key = (prod.name||'').toLowerCase().trim();
-  const port = window._PORT_MAP[key];
-  if (port?.diaRS !== undefined && port.diaRS !== null) return port.diaRS;
-  return null;
-}
-
+// ─── FETCH ───
 async function loadData() {
   try {
     const silentUpdate = ALL.length > 0;
     if (!silentUpdate) { document.getElementById('loading').style.display='flex'; }
     document.getElementById('load-msg').textContent = 'Carregando dados Cloud...';
 
-    // Buscar API pública e portfolio em paralelo
-    const [res] = await Promise.all([
-      fetch(API, {headers:{'Accept':'application/json'}}),
-      loadPortfolioData(),
-    ]);
+    const res = await fetch(API, {headers:{'Accept':'application/json'}});
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
 
@@ -2342,6 +2190,9 @@ async function loadData() {
     document.getElementById('upd-time').textContent = now;
     startCountdown();
 
+
+
+
   } catch(err) {
     if (ALL.length > 0) { console.warn('Falha no refresh silencioso:', err.message); startCountdown(); return; }
     document.getElementById('loading').style.display = 'none';
@@ -2363,7 +2214,7 @@ const GRATIS_CFG = {
   lynx:     { color:'#2563eb', telegram:'https://t.me/cloudtradingchat',
     // Dados fixos como fallback enquanto API não retorna
     fallback: { netReturn:0.4066, profitFactor:1.42, percentualNumberOfProfitEliminations:0.5161,
-                percentualMaximumDrawdown:0.0684, numberOfEliminations:124, initialCapital:4000 } },
+                percentualMaximumDrawdown:0.0684, numberOfEliminations:124 } },
   venaciti: { color:'#7c3aed', telegram:'https://t.me/cloudtradingchat', fallback: null },
 };
 const GRATIS_CACHE = {};
@@ -2439,34 +2290,34 @@ function renderGratisCards() {
       s(`${id}-dd`,`${(dd*100).toFixed(1)}%`,dd>0.2?'var(--red)':'var(--grn)');
       s(`${id}-ops`,ops);
 
-      // Dia em R$
+      // Resultado dia e mês em R$
+      const hojeMap = window._HOJE_MAP || {};
+      const h = hojeMap[prod?.name?.trim()] || hojeMap[prod?.name];
+      const capital = parseFloat(prod?.robot?.report?.initialCapital || 0);
+
+      // Dia
       const diaEl = document.getElementById(`${id}-dia-rs`);
-      if (diaEl && prod) {
-        const diaRS = getDiaRS(prod, window._HOJE_MAP || {});
-        if (diaRS !== null) {
-          diaEl.textContent = `${diaRS>=0?'+':''}R$${Math.abs(diaRS).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
-          diaEl.style.color = diaRS >= 0 ? 'var(--grn)' : 'var(--red)';
+      if (diaEl) {
+        if (h?.resultadoRS !== undefined && h.resultadoRS !== null) {
+          const v = h.resultadoRS;
+          diaEl.textContent = `${v>=0?'+':''}R$${Math.abs(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+          diaEl.style.color = v >= 0 ? 'var(--grn)' : 'var(--red)';
         }
       }
 
-      // Mês em % (acúmulo real ativa em julho)
+      // Mês em %
       const mesEl = document.getElementById(`${id}-mes-rs`);
       if (mesEl) {
-        const freshCurve = prod ? getFreshCurve(prod) : curve;
-        const useCurve = freshCurve.length > 1 ? freshCurve : curve;
-        const display = getMesDisplay(prod?.name || id, useCurve);
-        if (display) {
-          mesEl.innerHTML = fmtMesDisplay(display);
-          mesEl.style.color = '';
+        const mesRet = monthReturn(curve);
+        if (mesRet !== null) {
+          mesEl.textContent = `${mesRet>=0?'+':''}${(mesRet*100).toFixed(1)}%`;
+          mesEl.style.color = mesRet >= 0 ? 'var(--grn)' : 'var(--red)';
         }
       }
 
-      // Sparkline
-      const freshCurve2 = prod ? getFreshCurve(prod) : curve;
-      const el = document.getElementById(`${id}-spark`);
-      if (el && freshCurve2.length > 1) el.innerHTML = gSparkline(freshCurve2, cfg.color);
-      else if (el && curve.length > 1) el.innerHTML = gSparkline(curve, cfg.color);
-      else if (el) el.innerHTML = `<div style="height:65px;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--txt3)">Curva em atualização</div>`;
+      const el=document.getElementById(`${id}-spark`);
+      if (el && curve.length>1) el.innerHTML=gSparkline(curve,cfg.color);
+      else if (el && !curve.length) el.innerHTML=`<div style="height:65px;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--txt3)">Curva em atualização</div>`;
     });
   } catch(e){console.error('renderGratisCards:',e);}
 }
