@@ -1088,11 +1088,28 @@ function renderHome() {
   const top5Month = [...withDay].filter(p => p.month !== null).sort((a,b) => b.month - a.month).slice(0, 5);
 
   function top5rows(arr, key) {
-    return arr.map((p, i) => `<tr>
-      <td class="rank-num ${i<3?'rank-'+(i+1):''}">${i+1}</td>
-      <td class="strat-name-cell">${p.name}</td>
-      <td class="ret-cell ${colCls(p[key])}">${pct(p[key])}</td>
-    </tr>`).join('');
+    return arr.map((p, i) => {
+      let valHtml;
+      if (key === 'day') {
+        // Dia em R$ se disponível, senão %
+        const hojeMap = window._HOJE_MAP || {};
+        const h = hojeMap[p.name?.trim()] || hojeMap[p.name];
+        if (h?.resultadoRS !== undefined && h.resultadoRS !== null) {
+          const v = h.resultadoRS;
+          const cls = v > 0 ? 'pos' : v < 0 ? 'neg' : 'zero';
+          valHtml = `<span class="${cls}">${v>=0?'+':''}R$${Math.abs(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>`;
+        } else {
+          valHtml = `<span class="${colCls(p[key])}">${pct(p[key])}</span>`;
+        }
+      } else {
+        valHtml = `<span class="${colCls(p[key])}">${pct(p[key])}</span>`;
+      }
+      return `<tr>
+        <td class="rank-num ${i<3?'rank-'+(i+1):''}">${i+1}</td>
+        <td class="strat-name-cell">${p.name}</td>
+        <td class="ret-cell">${valHtml}</td>
+      </tr>`;
+    }).join('');
   }
 
   const noDataMsg = `<tr><td colspan="3" style="color:var(--txt3);padding:14px;text-align:center;font-size:12px">
@@ -1565,17 +1582,34 @@ function loadOrBuildPortfolios() {
 function calcPortfolioPerformance(selected) {
   let totalDiaRS = null;
   let totalMesRS = null;
+  let countMes   = 0;
   const hojeMap  = window._HOJE_MAP || {};
+  const mesMap   = acumGetMesRS();
 
   selected.forEach(p => {
+    // Dia em R$
     const diaRS = getDiaRS(p, hojeMap);
     if (diaRS !== null) totalDiaRS = (totalDiaRS || 0) + diaRS;
 
-    const mesRS = getMonthRS(p);
-    if (mesRS !== null) totalMesRS = (totalMesRS || 0) + mesRS;
+    // Mês: prioriza acúmulo real, fallback % × capital
+    const nome = p.name?.trim();
+    const key  = Object.keys(mesMap).find(k => k.trim().toLowerCase() === nome?.toLowerCase());
+    if (key !== undefined) {
+      totalMesRS = (totalMesRS || 0) + mesMap[key];
+      countMes++;
+    } else {
+      // Fallback % do mês
+      const curve  = getFreshCurve(p);
+      const mesRet = monthReturn(curve);
+      const cap    = parseFloat(p.robot?.report?.initialCapital || 0);
+      if (mesRet !== null && cap > 0) {
+        totalMesRS = (totalMesRS || 0) + mesRet * cap;
+        countMes++;
+      }
+    }
   });
 
-  return { diaRS: totalDiaRS, mesRS: totalMesRS };
+  return { diaRS: totalDiaRS, mesRS: countMes > 0 ? totalMesRS : null };
 }
 
 // ─── RENDER PORTFOLIOS ───
@@ -1709,6 +1743,8 @@ async function loadHojeMap() {
       window._HOJE_MAP[r.nome?.trim()] = r;
       window._HOJE_MAP[r.nome] = r;
     });
+    // Salvar resultado do dia no acúmulo mensal
+    acumSaveDay(window._HOJE_MAP);
   } catch(e) {
     window._HOJE_MAP = {};
   }
@@ -2027,7 +2063,8 @@ async function renderResults() {
       return {
         nome:   p.name,
         diaRS,  diaPct,
-        mesRet, anoRet,
+        mesDisp: getMesDisplay(p.name, curve),
+        anoRet,
         ret6m:  parseFloat(r.netReturn || 0),
         dd:     parseFloat(r.percentualMaximumDrawdown || 0),
         wr:     parseFloat(r.percentualNumberOfProfitEliminations || 0),
@@ -2054,7 +2091,7 @@ async function renderResults() {
     tbody.innerHTML = rows.map(r => `<tr>
       <td>${r.nome}</td>
       <td>${fmtDia(r.diaRS, r.diaPct)}</td>
-      <td>${fmtPct(r.mesRet)}</td>
+      <td>${fmtMesDisplay(r.mesDisp)}</td>
       <td>${fmtPct(r.anoRet)}</td>
       <td>${fmtPct(r.ret6m)}</td>
       <td class="${r.dd>0.3?'neg':r.dd>0.15?'zero':'pos'}">${(r.dd*100).toFixed(1)}%</td>
@@ -2098,9 +2135,113 @@ setInterval(() => {
   if (el) el.textContent = new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'})+' BRT';
 }, 1000);
 
-// ─── FETCH ───
-// Mapa portfolioCode → dados do investment_portfolios (curva fresca + orders)
-window._PORT_MAP = {};
+// ══════════════════════════════════════════════════
+// SISTEMA DE ACÚMULO DIÁRIO → RESULTADO MÊS EM R$
+// Salva resultado do dia de cada estratégia no localStorage
+// Soma o mês corrente → resultado mensal exato em R$
+// Reseta automaticamente no dia 1º de cada mês
+// ══════════════════════════════════════════════════
+const ACUM_KEY = 'cloud_acum_v1';
+
+function acumGetStore() {
+  try { return JSON.parse(localStorage.getItem(ACUM_KEY) || '{}'); } catch(e) { return {}; }
+}
+function acumSaveStore(store) {
+  try { localStorage.setItem(ACUM_KEY, JSON.stringify(store)); } catch(e) {}
+}
+
+// Salva resultado do dia para cada estratégia (chamado após /api/hoje carregar)
+function acumSaveDay(hojeMap) {
+  if (!hojeMap || !Object.keys(hojeMap).length) return;
+  const now    = new Date();
+  const hoje   = now.toISOString().slice(0,10);
+  const mesAno = hoje.slice(0,7);
+  const store  = acumGetStore();
+
+  // Resetar se mudou o mês
+  if (store.mesAno && store.mesAno !== mesAno) {
+    // Arquivar mês anterior
+    store.historico = store.historico || {};
+    store.historico[store.mesAno] = store.dias;
+    store.dias  = {};
+    store.mesAno = mesAno;
+  }
+  if (!store.mesAno) store.mesAno = mesAno;
+  if (!store.dias)   store.dias   = {};
+
+  // Só salva se ainda não salvou hoje
+  if (store.dias[hoje]) return;
+
+  const dayData = {};
+  Object.entries(hojeMap).forEach(([nome, r]) => {
+    if (r.resultadoRS !== undefined && r.resultadoRS !== null) {
+      dayData[nome] = r.resultadoRS;
+    }
+  });
+
+  if (Object.keys(dayData).length > 0) {
+    store.dias[hoje] = dayData;
+    acumSaveStore(store);
+    console.log(`[Acúmulo] Salvou ${Object.keys(dayData).length} estratégias para ${hoje}`);
+  }
+}
+
+// Retorna resultado acumulado do mês corrente em R$ por estratégia
+function acumGetMesRS() {
+  const store  = acumGetStore();
+  const now    = new Date();
+  const mesAno = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  if (!store.dias || store.mesAno !== mesAno) return {};
+
+  const totais = {};
+  Object.values(store.dias).forEach(dayData => {
+    Object.entries(dayData).forEach(([nome, rs]) => {
+      totais[nome] = (totais[nome] || 0) + rs;
+    });
+  });
+  return totais;
+}
+
+// Retorna resultado do mês de uma estratégia em R$ (acumulado real)
+// Fallback para % se não houver dados acumulados
+function getMesDisplay(nomeProd, curve) {
+  const mesMap = acumGetMesRS();
+  const nome   = nomeProd?.trim();
+  // Buscar por nome exato ou aproximado
+  const key = Object.keys(mesMap).find(k =>
+    k.trim().toLowerCase() === nome?.toLowerCase()
+  );
+  if (key !== undefined && mesMap[key] !== undefined) {
+    const v = mesMap[key];
+    return { tipo:'rs', valor:v };
+  }
+  // Fallback: % da curva
+  const mesRet = monthReturn(curve);
+  if (mesRet !== null) return { tipo:'pct', valor:mesRet };
+  return null;
+}
+
+function fmtMesDisplay(display) {
+  if (!display) return '<span class="zero">—</span>';
+  if (display.tipo === 'rs') {
+    const v   = display.valor;
+    const cls = v > 0 ? 'pos' : v < 0 ? 'neg' : 'zero';
+    return `<span class="${cls}">${v>=0?'+':''}R$${Math.abs(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>`;
+  }
+  // pct
+  const v   = display.valor;
+  const cls = v > 0 ? 'pos' : v < 0 ? 'neg' : 'zero';
+  return `<span class="${cls}">${v>0?'+':''}${(v*100).toFixed(1)}%</span>`;
+}
+
+// Diagnóstico do acúmulo (para debug)
+function acumStatus() {
+  const store = acumGetStore();
+  const dias  = Object.keys(store.dias || {}).length;
+  const total = Object.keys(acumGetMesRS()).length;
+  console.log(`[Acúmulo] Mês: ${store.mesAno} | Dias salvos: ${dias} | Estratégias: ${total}`);
+  return store;
+}
 
 async function loadPortfolioData() {
   try {
@@ -2298,19 +2439,13 @@ function renderGratisCards() {
         }
       }
 
-      // Mês em R$
+      // Mês — acúmulo real se disponível, senão %
       const mesEl = document.getElementById(`${id}-mes-rs`);
       if (mesEl) {
-        // Para Lynx sem dados na API, usar fallback com curva da API pública × capital
-        let mesRS = prod ? getMonthRS(prod) : null;
-        if (mesRS === null && cfg.fallback) {
-          const cap = cfg.fallback.initialCapital || 4000;
-          const mesRet = monthReturn(curve);
-          if (mesRet !== null) mesRS = mesRet * cap;
-        }
-        if (mesRS !== null) {
-          mesEl.textContent = `${mesRS>=0?'+':''}R$${Math.abs(mesRS).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
-          mesEl.style.color = mesRS >= 0 ? 'var(--grn)' : 'var(--red)';
+        const display = getMesDisplay(prod?.name || id, curve);
+        if (display) {
+          mesEl.innerHTML = fmtMesDisplay(display);
+          mesEl.style.color = '';
         }
       }
 
