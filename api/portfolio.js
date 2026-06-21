@@ -1,20 +1,18 @@
 // api/portfolio.js
-// Proxy que cruza portfolioCode da API de produtos com investment_portfolios
-// Retorna curva atualizada diariamente + orders por dia
+// Cruza portfolioCode da API de produtos com investment_portfolios
+// Calcula resultado dia e mês em R$ usando initialCapital da API pública
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Cache-Control', 's-maxage=300'); // cache 5 min
+  res.setHeader('Cache-Control', 's-maxage=300');
 
   const { code } = req.query;
 
   try {
     if (code) {
-      // Modo 1: busca um portfólio específico pelo portfolioCode
       const data = await fetchPortfolio(code);
       return res.status(200).json(data);
     } else {
-      // Modo 2: busca todos os produtos Cloud, extrai portfolioCode e enriquece
       const enriched = await fetchAllCloudPortfolios();
       return res.status(200).json(enriched);
     }
@@ -29,55 +27,10 @@ async function fetchPortfolio(code) {
     headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' }
   });
   if (!r.ok) throw new Error(`investment_portfolios/${code} returned ${r.status}`);
-  const data = await r.json();
-
-  // Processar investments: extrair curva e orders
-  const investments = (data.investments || []).map(inv => {
-    const curve = parseCurve(inv.daily_cumulative_performance || '');
-    const orders = inv.orders || {};
-    const dates  = Object.keys(orders).sort();
-    const lastDate = dates[dates.length - 1];
-    const lastOrders = orders[lastDate] || 0;
-
-    // Calcular resultado do dia: diferença dos últimos 2 pontos ativos
-    const activePts = curve.filter(p => p.active);
-    const todayRet  = activePts.length >= 2
-      ? activePts[activePts.length - 1].v - activePts[activePts.length - 2].v
-      : null;
-
-    // Calcular resultado do mês corrente
-    const now    = new Date();
-    const mesAno = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
-    const mesPts = curve.filter(p => p.d && p.d.startsWith(mesAno) && p.active);
-    const prevPt = curve.filter(p => p.d < mesAno + '-01' && p.active).pop();
-    const mesRet = mesPts.length > 0 && prevPt
-      ? mesPts[mesPts.length - 1].v - prevPt.v
-      : null;
-
-    return {
-      id:         inv.id,
-      name:       inv.name?.trim(),
-      start_date: inv.start_date,
-      final_date: inv.final_date,
-      login:      inv.login,
-      lastDate,
-      lastOrders,
-      todayRet,   // retorno % do dia (diferença da curva)
-      mesRet,     // retorno % do mês corrente
-      curve,      // curva completa parseada [{d, active, v}]
-      orders,     // {data: nTrades}
-    };
-  });
-
-  return {
-    code:        data.code,
-    type:        data.type,
-    investments,
-  };
+  return await r.json();
 }
 
 async function fetchAllCloudPortfolios() {
-  // 1. Buscar todos os produtos Cloud
   const prodUrl = 'https://api.smarttbot.com/smarttbot-manager-api/api/v1/store/products?period=SIX_MONTHS';
   const prodRes = await fetch(prodUrl, {
     headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' }
@@ -91,24 +44,55 @@ async function fetchAllCloudPortfolios() {
     p.portfolioCode
   );
 
-  // 2. Para cada produto Cloud, buscar o investment_portfolio
   const results = await Promise.allSettled(
     cloudProds.map(async p => {
+      const capital = parseFloat(p.robot?.report?.initialCapital || 0);
       try {
-        const portData = await fetchPortfolio(p.portfolioCode);
+        const raw = await fetchPortfolio(p.portfolioCode);
+        const inv = raw.investments?.[0];
+        const curve = parseCurve(inv?.daily_cumulative_performance || '');
+        const orders = inv?.orders || {};
+
+        // Resultado do dia: diferença entre último e penúltimo ponto ativo
+        const active = curve.filter(pt => pt.active);
+        let diaRet = null, diaRS = null;
+        if (active.length >= 2) {
+          diaRet = active[active.length-1].v - active[active.length-2].v;
+          if (capital > 0) diaRS = diaRet * capital;
+        }
+
+        // Resultado do mês: variação desde 1º do mês atual
+        const now    = new Date();
+        const mesAno = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+        const mesPts = active.filter(pt => pt.d && pt.d.startsWith(mesAno));
+        const prevPt = active.filter(pt => pt.d && pt.d < mesAno+'-01').pop();
+        let mesRet = null, mesRS = null;
+        if (mesPts.length > 0 && prevPt) {
+          mesRet = (mesPts[mesPts.length-1].v / prevPt.v) - 1;
+          if (capital > 0) mesRS = mesRet * capital;
+        }
+
+        // Último dia com dados
+        const dates   = Object.keys(orders).sort();
+        const lastDate = dates[dates.length-1] || null;
+
         return {
-          productId:     p.id,
           name:          p.name,
           portfolioCode: p.portfolioCode,
-          strategist:    p.strategist?.name,
-          report:        p.robot?.report || {},
-          portfolio:     portData,
+          capital,
+          diaRet,  // % do dia
+          diaRS,   // R$ do dia
+          mesRet,  // % do mês
+          mesRS,   // R$ do mês
+          lastDate,
+          curve,   // curva completa [{d, active, v}]
+          orders,  // {data: nTrades}
         };
       } catch(e) {
         return {
-          productId:     p.id,
           name:          p.name,
           portfolioCode: p.portfolioCode,
+          capital,
           error:         e.message,
         };
       }
@@ -116,7 +100,7 @@ async function fetchAllCloudPortfolios() {
   );
 
   return {
-    total: cloudProds.length,
+    total:    cloudProds.length,
     products: results.map(r => r.status === 'fulfilled' ? r.value : r.reason),
   };
 }
