@@ -1119,6 +1119,14 @@ function renderHome() {
   document.getElementById('top5-day').innerHTML   = top5Day.length   ? top5rows(top5Day,   'day')   : noDataMsg;
   document.getElementById('top5-month').innerHTML = top5Month.length ? top5rows(top5Month, 'month') : noDataMsg;
 
+  // Recarrega Top 5 dia em R$ após /api/hoje carregar
+  if (!window._HOJE_MAP) {
+    loadHojeMap().then(() => {
+      document.getElementById('top5-day').innerHTML =
+        top5Day.length ? top5rows(top5Day, 'day') : noDataMsg;
+    });
+  }
+
   renderPerfChart();
 }
 
@@ -1580,36 +1588,26 @@ function loadOrBuildPortfolios() {
 
 // Calcular resultado do dia e do mês de um grupo de estratégias
 function calcPortfolioPerformance(selected) {
-  let totalDiaRS = null;
-  let totalMesRS = null;
-  let countMes   = 0;
-  const hojeMap  = window._HOJE_MAP || {};
-  const mesMap   = acumGetMesRS();
+  let totalDiaRS  = null;
+  let totalMesPct = 0;
+  let countMes    = 0;
+  const hojeMap   = window._HOJE_MAP || {};
 
   selected.forEach(p => {
     // Dia em R$
     const diaRS = getDiaRS(p, hojeMap);
     if (diaRS !== null) totalDiaRS = (totalDiaRS || 0) + diaRS;
 
-    // Mês: prioriza acúmulo real, fallback % × capital
-    const nome = p.name?.trim();
-    const key  = Object.keys(mesMap).find(k => k.trim().toLowerCase() === nome?.toLowerCase());
-    if (key !== undefined) {
-      totalMesRS = (totalMesRS || 0) + mesMap[key];
-      countMes++;
-    } else {
-      // Fallback % do mês
-      const curve  = getFreshCurve(p);
-      const mesRet = monthReturn(curve);
-      const cap    = parseFloat(p.robot?.report?.initialCapital || 0);
-      if (mesRet !== null && cap > 0) {
-        totalMesRS = (totalMesRS || 0) + mesRet * cap;
-        countMes++;
-      }
-    }
+    // Mês em % (média das estratégias da carteira)
+    const curve  = getFreshCurve(p);
+    const mesRet = monthReturn(curve);
+    if (mesRet !== null) { totalMesPct += mesRet; countMes++; }
   });
 
-  return { diaRS: totalDiaRS, mesRS: countMes > 0 ? totalMesRS : null };
+  return {
+    diaRS:  totalDiaRS,
+    mesPct: countMes > 0 ? totalMesPct / countMes : null,
+  };
 }
 
 // ─── RENDER PORTFOLIOS ───
@@ -1671,8 +1669,8 @@ function buildPortfolios() {
         ? `<span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:${perf.diaRS>=0?'var(--grn)':'var(--red)'}">${perf.diaRS>=0?'+':''}R$${Math.abs(perf.diaRS).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>`
         : `<span style="font-size:11px;color:var(--txt3)">—</span>`;
 
-      const mesHtml = perf.mesRS !== null
-        ? `<span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:${perf.mesRS>=0?'var(--grn)':'var(--red)'}">${perf.mesRS>=0?'+':''}R$${Math.abs(perf.mesRS).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>`
+      const mesHtml = perf.mesPct !== null
+        ? `<span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:${perf.mesPct>=0?'var(--grn)':'var(--red)'}">${perf.mesPct>=0?'+':''}${(perf.mesPct*100).toFixed(1)}%</span>`
         : `<span style="font-size:11px;color:var(--txt3)">—</span>`;
 
       return `<div class="port-card" onclick="openPortModal('${cfg.id}')">
@@ -2202,18 +2200,30 @@ function acumGetMesRS() {
   return totais;
 }
 
-// Retorna resultado do mês de uma estratégia em R$ (acumulado real)
-// Fallback para % se não houver dados acumulados
+// Retorna resultado do mês para exibição
+// Por enquanto sempre em % (acúmulo real ativa em julho)
 function getMesDisplay(nomeProd, curve) {
-  const mesMap = acumGetMesRS();
-  const nome   = nomeProd?.trim();
-  // Buscar por nome exato ou aproximado
-  const key = Object.keys(mesMap).find(k =>
-    k.trim().toLowerCase() === nome?.toLowerCase()
-  );
-  if (key !== undefined && mesMap[key] !== undefined) {
-    const v = mesMap[key];
-    return { tipo:'rs', valor:v };
+  const mesRet = monthReturn(curve);
+  if (mesRet !== null) return { tipo:'pct', valor:mesRet };
+  return null;
+}
+
+// A partir de julho: verifica se há acúmulo real para o mês corrente
+// Só usa acúmulo se houver dados de MAIS de um dia (evita mostrar só o dia de hoje)
+function getMesDisplayComAcum(nomeProd, curve) {
+  const store  = acumGetStore();
+  const now    = new Date();
+  const mesAno = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const diasSalvos = Object.keys(store.dias || {}).length;
+
+  // Só usa acúmulo a partir de julho E se tiver mais de 1 dia salvo
+  if (mesAno >= '2026-07' && diasSalvos > 1 && store.mesAno === mesAno) {
+    const mesMap = acumGetMesRS();
+    const nome   = nomeProd?.trim();
+    const key    = Object.keys(mesMap).find(k =>
+      k.trim().toLowerCase() === nome?.toLowerCase()
+    );
+    if (key !== undefined) return { tipo:'rs', valor:mesMap[key] };
   }
   // Fallback: % da curva
   const mesRet = monthReturn(curve);
@@ -2431,7 +2441,7 @@ function renderGratisCards() {
 
       // Dia em R$
       const diaEl = document.getElementById(`${id}-dia-rs`);
-      if (diaEl) {
+      if (diaEl && prod) {
         const diaRS = getDiaRS(prod, window._HOJE_MAP || {});
         if (diaRS !== null) {
           diaEl.textContent = `${diaRS>=0?'+':''}R$${Math.abs(diaRS).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
@@ -2439,22 +2449,24 @@ function renderGratisCards() {
         }
       }
 
-      // Mês — acúmulo real se disponível, senão %
+      // Mês em % (acúmulo real ativa em julho)
       const mesEl = document.getElementById(`${id}-mes-rs`);
       if (mesEl) {
-        const display = getMesDisplay(prod?.name || id, curve);
+        const freshCurve = prod ? getFreshCurve(prod) : curve;
+        const useCurve = freshCurve.length > 1 ? freshCurve : curve;
+        const display = getMesDisplay(prod?.name || id, useCurve);
         if (display) {
           mesEl.innerHTML = fmtMesDisplay(display);
           mesEl.style.color = '';
         }
       }
 
-      // Sparkline com curva fresca se disponível
-      const freshCurve = prod ? getFreshCurve(prod) : curve;
+      // Sparkline
+      const freshCurve2 = prod ? getFreshCurve(prod) : curve;
       const el = document.getElementById(`${id}-spark`);
-      if (el && freshCurve.length>1) el.innerHTML=gSparkline(freshCurve, cfg.color);
-      else if (el && curve.length>1) el.innerHTML=gSparkline(curve, cfg.color);
-      else if (el) el.innerHTML=`<div style="height:65px;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--txt3)">Curva em atualização</div>`;
+      if (el && freshCurve2.length > 1) el.innerHTML = gSparkline(freshCurve2, cfg.color);
+      else if (el && curve.length > 1) el.innerHTML = gSparkline(curve, cfg.color);
+      else if (el) el.innerHTML = `<div style="height:65px;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--txt3)">Curva em atualização</div>`;
     });
   } catch(e){console.error('renderGratisCards:',e);}
 }
