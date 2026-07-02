@@ -654,17 +654,6 @@ svg.mchart{width:100%;height:100%}
         </div>
         <div style="padding:20px 22px">
           <div id="lynx-spark" style="background:var(--bg);border-radius:8px;margin-bottom:14px;overflow:hidden"></div>
-          <!-- Resultado dia/mês -->
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
-            <div style="background:var(--bg);border-radius:8px;padding:10px">
-              <div style="font-size:9px;color:var(--txt3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px">Resultado Dia</div>
-              <div id="lynx-dia-rs" style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;color:var(--txt3)">—</div>
-            </div>
-            <div style="background:var(--bg);border-radius:8px;padding:10px">
-              <div style="font-size:9px;color:var(--txt3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px">Resultado Mês</div>
-              <div id="lynx-mes-rs" style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;color:var(--txt3)">—</div>
-            </div>
-          </div>
           <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px">
             <div style="background:var(--bg);border-radius:8px;padding:10px"><div id="lynx-dd" style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700">—</div><div style="font-size:9px;color:var(--txt3);text-transform:uppercase;letter-spacing:.07em;margin-top:2px">Max DD</div></div>
             <div style="background:var(--bg);border-radius:8px;padding:10px"><div id="lynx-ops" style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700">—</div><div style="font-size:9px;color:var(--txt3);text-transform:uppercase;letter-spacing:.07em;margin-top:2px">Trades</div></div>
@@ -687,17 +676,6 @@ svg.mchart{width:100%;height:100%}
         </div>
         <div style="padding:20px 22px">
           <div id="venaciti-spark" style="background:var(--bg);border-radius:8px;margin-bottom:14px;overflow:hidden"></div>
-          <!-- Resultado dia/mês -->
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
-            <div style="background:var(--bg);border-radius:8px;padding:10px">
-              <div style="font-size:9px;color:var(--txt3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px">Resultado Dia</div>
-              <div id="venaciti-dia-rs" style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;color:var(--txt3)">—</div>
-            </div>
-            <div style="background:var(--bg);border-radius:8px;padding:10px">
-              <div style="font-size:9px;color:var(--txt3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px">Resultado Mês</div>
-              <div id="venaciti-mes-rs" style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;color:var(--txt3)">—</div>
-            </div>
-          </div>
           <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px">
             <div style="background:var(--bg);border-radius:8px;padding:10px"><div id="venaciti-dd" style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700">—</div><div style="font-size:9px;color:var(--txt3);text-transform:uppercase;letter-spacing:.07em;margin-top:2px">Max DD</div></div>
             <div style="background:var(--bg);border-radius:8px;padding:10px"><div id="venaciti-ops" style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700">—</div><div style="font-size:9px;color:var(--txt3);text-transform:uppercase;letter-spacing:.07em;margin-top:2px">Trades</div></div>
@@ -1088,27 +1066,11 @@ function renderHome() {
   const top5Month = [...withDay].filter(p => p.month !== null).sort((a,b) => b.month - a.month).slice(0, 5);
 
   function top5rows(arr, key) {
-    const hojeMap = window._HOJE_MAP || {};
-    return arr.map((p, i) => {
-      let valHtml;
-      if (key === 'day') {
-        const h = hojeMap[p.name?.trim()] || hojeMap[p.name];
-        if (h?.resultadoRS !== undefined && h.resultadoRS !== null) {
-          const v = h.resultadoRS;
-          const cls = v > 0 ? 'pos' : v < 0 ? 'neg' : 'zero';
-          valHtml = `<span class="${cls}">${v>=0?'+':''}R$${Math.abs(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>`;
-        } else {
-          valHtml = `<span class="${colCls(p[key])}">${pct(p[key])}</span>`;
-        }
-      } else {
-        valHtml = `<span class="${colCls(p[key])}">${pct(p[key])}</span>`;
-      }
-      return `<tr>
-        <td class="rank-num ${i<3?'rank-'+(i+1):''}">${i+1}</td>
-        <td class="strat-name-cell">${p.name}</td>
-        <td class="ret-cell">${valHtml}</td>
-      </tr>`;
-    }).join('');
+    return arr.map((p, i) => `<tr>
+      <td class="rank-num ${i<3?'rank-'+(i+1):''}">${i+1}</td>
+      <td class="strat-name-cell">${p.name}</td>
+      <td class="ret-cell ${colCls(p[key])}">${pct(p[key])}</td>
+    </tr>`).join('');
   }
 
   const noDataMsg = `<tr><td colspan="3" style="color:var(--txt3);padding:14px;text-align:center;font-size:12px">
@@ -1117,14 +1079,6 @@ function renderHome() {
 
   document.getElementById('top5-day').innerHTML   = top5Day.length   ? top5rows(top5Day,   'day')   : noDataMsg;
   document.getElementById('top5-month').innerHTML = top5Month.length ? top5rows(top5Month, 'month') : noDataMsg;
-
-  // Re-renderiza Top 5 dia em R$ após /api/hoje carregar (se ainda não carregou)
-  if (!window._HOJE_MAP) {
-    loadHojeMap().then(() => {
-      if (top5Day.length)
-        document.getElementById('top5-day').innerHTML = top5rows(top5Day, 'day');
-    });
-  }
 
   renderPerfChart();
 }
@@ -1588,26 +1542,30 @@ function loadOrBuildPortfolios() {
 // Calcular resultado do dia e do mês de um grupo de estratégias
 function calcPortfolioPerformance(selected) {
   let totalDiaRS  = null;
-  let totalMesPct = 0;
-  let countMes    = 0;
+  let totalMesRS  = null;
   const hojeMap   = window._HOJE_MAP || {};
 
   selected.forEach(p => {
-    // Dia em R$ via /api/hoje
+    const r      = p.robot?.report || {};
+    const capital = parseFloat(r.initialCapital || 0);
+
+    // Resultado do dia em R$
     const h = hojeMap[p.name?.trim()] || hojeMap[p.name];
     if (h?.resultadoRS !== undefined && h.resultadoRS !== null) {
       totalDiaRS = (totalDiaRS || 0) + h.resultadoRS;
     }
-    // Mês em % (média das estratégias)
-    const curve  = parseCurve(p.robot?.dailyCumulativePerformance || '');
-    const mesRet = monthReturn(curve);
-    if (mesRet !== null) { totalMesPct += mesRet; countMes++; }
+
+    // Resultado do mês em R$ = retorno% × capital inicial
+    if (capital > 0) {
+      const curve  = parseCurve(p.robot?.dailyCumulativePerformance || '');
+      const mesRet = monthReturn(curve);
+      if (mesRet !== null) {
+        totalMesRS = (totalMesRS || 0) + mesRet * capital;
+      }
+    }
   });
 
-  return {
-    diaRS:  totalDiaRS,
-    mesPct: countMes > 0 ? totalMesPct / countMes : null,
-  };
+  return { diaRS: totalDiaRS, mesRS: totalMesRS };
 }
 
 // ─── RENDER PORTFOLIOS ───
@@ -1669,8 +1627,8 @@ function buildPortfolios() {
         ? `<span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:${perf.diaRS>=0?'var(--grn)':'var(--red)'}">${perf.diaRS>=0?'+':''}R$${Math.abs(perf.diaRS).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>`
         : `<span style="font-size:11px;color:var(--txt3)">—</span>`;
 
-      const mesHtml = perf.mesPct !== null
-        ? `<span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:${perf.mesPct>=0?'var(--grn)':'var(--red)'}">${perf.mesPct>=0?'+':''}${(perf.mesPct*100).toFixed(1)}%</span>`
+      const mesHtml = perf.mesRS !== null
+        ? `<span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:${perf.mesRS>=0?'var(--grn)':'var(--red)'}">${perf.mesRS>=0?'+':''}R$${Math.abs(perf.mesRS).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>`
         : `<span style="font-size:11px;color:var(--txt3)">—</span>`;
 
       return `<div class="port-card" onclick="openPortModal('${cfg.id}')">
@@ -1730,34 +1688,6 @@ function buildPortfolios() {
 }
 
 // Carregar mapa de resultados do dia
-// Acúmulo diário silencioso — salva resultado do dia no localStorage
-// Só exibirá em R$ a partir de julho/2026 quando tiver histórico completo
-const ACUM_KEY = 'cloud_acum_v1';
-function acumSaveDay(hojeMap) {
-  try {
-    const now    = new Date();
-    const hoje   = now.toISOString().slice(0,10);
-    const mesAno = hoje.slice(0,7);
-    let store = JSON.parse(localStorage.getItem(ACUM_KEY) || '{}');
-    // Reseta no início de novo mês
-    if (store.mesAno && store.mesAno !== mesAno) {
-      store = { mesAno, dias: {} };
-    }
-    if (!store.mesAno) store.mesAno = mesAno;
-    if (!store.dias)   store.dias   = {};
-    if (store.dias[hoje]) return; // já salvou hoje
-    const dayData = {};
-    Object.entries(hojeMap).forEach(([nome, r]) => {
-      if (r?.resultadoRS !== undefined && r.resultadoRS !== null)
-        dayData[nome.trim()] = r.resultadoRS;
-    });
-    if (Object.keys(dayData).length > 0) {
-      store.dias[hoje] = dayData;
-      localStorage.setItem(ACUM_KEY, JSON.stringify(store));
-    }
-  } catch(e) {}
-}
-
 async function loadHojeMap() {
   if (window._HOJE_MAP) return;
   try {
@@ -1769,8 +1699,6 @@ async function loadHojeMap() {
       window._HOJE_MAP[r.nome?.trim()] = r;
       window._HOJE_MAP[r.nome] = r;
     });
-    // Salva silenciosamente para acúmulo mensal (exibe em R$ a partir de julho)
-    acumSaveDay(window._HOJE_MAP);
   } catch(e) {
     window._HOJE_MAP = {};
   }
@@ -2025,9 +1953,7 @@ function goPage(id, btn) {
   btn.classList.add('active');
   if (id === 'strategies') renderStratTable();
   if (id === 'portfolios' && ALL.length) renderPortfolios();
-  if (id === 'gratis' && ALL.length) {
-    loadHojeMap().then(() => renderGratisCards());
-  }
+  if (id === 'gratis' && ALL.length) renderGratisCards();
   if (id === 'results') renderResults();
 }
 
@@ -2289,32 +2215,6 @@ function renderGratisCards() {
       s(`${id}-wr`,`${(wr*100).toFixed(0)}%`);
       s(`${id}-dd`,`${(dd*100).toFixed(1)}%`,dd>0.2?'var(--red)':'var(--grn)');
       s(`${id}-ops`,ops);
-
-      // Resultado dia e mês em R$
-      const hojeMap = window._HOJE_MAP || {};
-      const h = hojeMap[prod?.name?.trim()] || hojeMap[prod?.name];
-      const capital = parseFloat(prod?.robot?.report?.initialCapital || 0);
-
-      // Dia
-      const diaEl = document.getElementById(`${id}-dia-rs`);
-      if (diaEl) {
-        if (h?.resultadoRS !== undefined && h.resultadoRS !== null) {
-          const v = h.resultadoRS;
-          diaEl.textContent = `${v>=0?'+':''}R$${Math.abs(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
-          diaEl.style.color = v >= 0 ? 'var(--grn)' : 'var(--red)';
-        }
-      }
-
-      // Mês em %
-      const mesEl = document.getElementById(`${id}-mes-rs`);
-      if (mesEl) {
-        const mesRet = monthReturn(curve);
-        if (mesRet !== null) {
-          mesEl.textContent = `${mesRet>=0?'+':''}${(mesRet*100).toFixed(1)}%`;
-          mesEl.style.color = mesRet >= 0 ? 'var(--grn)' : 'var(--red)';
-        }
-      }
-
       const el=document.getElementById(`${id}-spark`);
       if (el && curve.length>1) el.innerHTML=gSparkline(curve,cfg.color);
       else if (el && !curve.length) el.innerHTML=`<div style="height:65px;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--txt3)">Curva em atualização</div>`;
